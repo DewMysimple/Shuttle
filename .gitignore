@@ -1,0 +1,6 @@
+node_modules/
+dist/
+
+# Runtime assets are intentionally versioned so a fresh clone runs immediately.
+# Blender's old WebP experiments are not used by the site.
+public/assets/slices/*.webp

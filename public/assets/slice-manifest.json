@@ -1,0 +1,311 @@
+{
+  "count": 76,
+  "sourceFrameStart": 1,
+  "sourceFrameEnd": 420,
+  "frames": [
+    {
+      "index": 0,
+      "sourceFrame": 1
+    },
+    {
+      "index": 1,
+      "sourceFrame": 7
+    },
+    {
+      "index": 2,
+      "sourceFrame": 12
+    },
+    {
+      "index": 3,
+      "sourceFrame": 18
+    },
+    {
+      "index": 4,
+      "sourceFrame": 23
+    },
+    {
+      "index": 5,
+      "sourceFrame": 29
+    },
+    {
+      "index": 6,
+      "sourceFrame": 35
+    },
+    {
+      "index": 7,
+      "sourceFrame": 40
+    },
+    {
+      "index": 8,
+      "sourceFrame": 46
+    },
+    {
+      "index": 9,
+      "sourceFrame": 51
+    },
+    {
+      "index": 10,
+      "sourceFrame": 57
+    },
+    {
+      "index": 11,
+      "sourceFrame": 62
+    },
+    {
+      "index": 12,
+      "sourceFrame": 68
+    },
+    {
+      "index": 13,
+      "sourceFrame": 74
+    },
+    {
+      "index": 14,
+      "sourceFrame": 79
+    },
+    {
+      "index": 15,
+      "sourceFrame": 85
+    },
+    {
+      "index": 16,
+      "sourceFrame": 90
+    },
+    {
+      "index": 17,
+      "sourceFrame": 96
+    },
+    {
+      "index": 18,
+      "sourceFrame": 102
+    },
+    {
+      "index": 19,
+      "sourceFrame": 107
+    },
+    {
+      "index": 20,
+      "sourceFrame": 113
+    },
+    {
+      "index": 21,
+      "sourceFrame": 118
+    },
+    {
+      "index": 22,
+      "sourceFrame": 124
+    },
+    {
+      "index": 23,
+      "sourceFrame": 129
+    },
+    {
+      "index": 24,
+      "sourceFrame": 135
+    },
+    {
+      "index": 25,
+      "sourceFrame": 141
+    },
+    {
+      "index": 26,
+      "sourceFrame": 146
+    },
+    {
+      "index": 27,
+      "sourceFrame": 152
+    },
+    {
+      "index": 28,
+      "sourceFrame": 157
+    },
+    {
+      "index": 29,
+      "sourceFrame": 163
+    },
+    {
+      "index": 30,
+      "sourceFrame": 169
+    },
+    {
+      "index": 31,
+      "sourceFrame": 174
+    },
+    {
+      "index": 32,
+      "sourceFrame": 180
+    },
+    {
+      "index": 33,
+      "sourceFrame": 185
+    },
+    {
+      "index": 34,
+      "sourceFrame": 191
+    },
+    {
+      "index": 35,
+      "sourceFrame": 197
+    },
+    {
+      "index": 36,
+      "sourceFrame": 202
+    },
+    {
+      "index": 37,
+      "sourceFrame": 208
+    },
+    {
+      "index": 38,
+      "sourceFrame": 213
+    },
+    {
+      "index": 39,
+      "sourceFrame": 219
+    },
+    {
+      "index": 40,
+      "sourceFrame": 224
+    },
+    {
+      "index": 41,
+      "sourceFrame": 230
+    },
+    {
+      "index": 42,
+      "sourceFrame": 236
+    },
+    {
+      "index": 43,
+      "sourceFrame": 241
+    },
+    {
+      "index": 44,
+      "sourceFrame": 247
+    },
+    {
+      "index": 45,
+      "sourceFrame": 252
+    },
+    {
+      "index": 46,
+      "sourceFrame": 258
+    },
+    {
+      "index": 47,
+      "sourceFrame": 264
+    },
+    {
+      "index": 48,
+      "sourceFrame": 269
+    },
+    {
+      "index": 49,
+      "sourceFrame": 275
+    },
+    {
+      "index": 50,
+      "sourceFrame": 280
+    },
+    {
+      "index": 51,
+      "sourceFrame": 286
+    },
+    {
+      "index": 52,
+      "sourceFrame": 292
+    },
+    {
+      "index": 53,
+      "sourceFrame": 297
+    },
+    {
+      "index": 54,
+      "sourceFrame": 303
+    },
+    {
+      "index": 55,
+      "sourceFrame": 308
+    },
+    {
+      "index": 56,
+      "sourceFrame": 314
+    },
+    {
+      "index": 57,
+      "sourceFrame": 319
+    },
+    {
+      "index": 58,
+      "sourceFrame": 325
+    },
+    {
+      "index": 59,
+      "sourceFrame": 331
+    },
+    {
+      "index": 60,
+      "sourceFrame": 336
+    },
+    {
+      "index": 61,
+      "sourceFrame": 342
+    },
+    {
+      "index": 62,
+      "sourceFrame": 347
+    },
+    {
+      "index": 63,
+      "sourceFrame": 353
+    },
+    {
+      "index": 64,
+      "sourceFrame": 359
+    },
+    {
+      "index": 65,
+      "sourceFrame": 364
+    },
+    {
+      "index": 66,
+      "sourceFrame": 370
+    },
+    {
+      "index": 67,
+      "sourceFrame": 375
+    },
+    {
+      "index": 68,
+      "sourceFrame": 381
+    },
+    {
+      "index": 69,
+      "sourceFrame": 386
+    },
+    {
+      "index": 70,
+      "sourceFrame": 392
+    },
+    {
+      "index": 71,
+      "sourceFrame": 398
+    },
+    {
+      "index": 72,
+      "sourceFrame": 403
+    },
+    {
+      "index": 73,
+      "sourceFrame": 409
+    },
+    {
+      "index": 74,
+      "sourceFrame": 414
+    },
+    {
+      "index": 75,
+      "sourceFrame": 420
+    }
+  ]
+}
