@@ -80,6 +80,7 @@ p {
     radial-gradient(ellipse at 50% 55%, transparent 0 18%, rgba(255, 244, 218, 0.54) 36%, transparent 60%);
   filter: blur(25px);
   transform: rotate(-8deg);
+  animation: haze-drift 18s ease-in-out infinite alternate;
 }
 
 .slice-stage::after {
@@ -91,6 +92,7 @@ p {
   opacity: 0.2;
   background: linear-gradient(120deg, rgba(255, 255, 255, 0.5), transparent 35%, rgba(98, 55, 120, 0.12));
   mix-blend-mode: screen;
+  animation: veil-breathe 11s ease-in-out infinite alternate;
 }
 
 .stage-header,
@@ -242,6 +244,7 @@ p {
   letter-spacing: 0.1em;
   text-transform: uppercase;
   backdrop-filter: blur(12px);
+  will-change: transform, background-color;
   transition: background 180ms ease, transform 180ms ease;
 }
 
@@ -251,6 +254,30 @@ p {
 
 .expand-button:active {
   transform: scale(0.97);
+}
+
+@keyframes haze-drift {
+  0% {
+    opacity: 0.28;
+    transform: translate3d(-2%, 1%, 0) rotate(-8deg) scale(0.98);
+  }
+
+  100% {
+    opacity: 0.5;
+    transform: translate3d(2%, -1.5%, 0) rotate(-3deg) scale(1.04);
+  }
+}
+
+@keyframes veil-breathe {
+  0% {
+    opacity: 0.12;
+    transform: translate3d(-1%, 0, 0) scale(1);
+  }
+
+  100% {
+    opacity: 0.28;
+    transform: translate3d(1.5%, 1%, 0) scale(1.035);
+  }
 }
 
 @media (max-width: 700px) {

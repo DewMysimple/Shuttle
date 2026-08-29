@@ -5,6 +5,9 @@ import './style.css';
 const SLICE_COUNT = 76;
 const MODEL_URL = '/assets/flower.glb';
 const FRAME_URL = (index) => `/assets/slices/frame-${String(index + 1).padStart(3, '0')}.png`;
+const ORBIT_SENSITIVITY = 0.012;
+const PITCH_SENSITIVITY = 0.009;
+const PITCH_LIMIT = THREE.MathUtils.degToRad(68);
 
 const canvas = document.querySelector('#scene');
 const section = document.querySelector('.slice-section');
@@ -23,18 +26,24 @@ const state = {
   spreadTarget: 0,
   orbit: 0,
   orbitTarget: 0,
+  pitch: 0.08,
+  pitchTarget: 0.08,
   isDragging: false,
 };
 
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const isSmallViewport = window.matchMedia('(max-width: 700px)').matches;
 const clock = new THREE.Clock();
+let animationTime = 0;
 const pointer = {
   active: false,
   startX: 0,
+  startY: 0,
   currentX: 0,
+  currentY: 0,
   startSpread: 0,
   startOrbit: 0,
+  startPitch: 0,
 };
 
 const scene = new THREE.Scene();
@@ -51,6 +60,12 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.15;
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, isSmallViewport ? 1.25 : 1.8));
+
+const atmosphereRoot = new THREE.Group();
+const atmosphereParticles = [];
+const atmosphereRings = [];
+const atmosphereHalos = [];
+scene.add(atmosphereRoot);
 
 const ambientLight = new THREE.HemisphereLight(0xfff2dc, 0x51435d, 2.1);
 const keyLight = new THREE.DirectionalLight(0xffe3c5, 3.5);
@@ -70,6 +85,7 @@ const slices = [];
 let mixer = null;
 let clipDuration = 0;
 let flower = null;
+let flowerBaseY = 0;
 let lastDisplayedFrame = -1;
 let lastStatus = '';
 
@@ -117,6 +133,118 @@ function setStageStatus(value) {
   if (value === lastStatus) return;
   lastStatus = value;
   stageStatus.textContent = value;
+}
+
+function createAtmosphere() {
+  const particleCount = isSmallViewport ? 28 : 64;
+  const positions = new Float32Array(particleCount * 3);
+  const seeds = new Float32Array(particleCount);
+
+  for (let index = 0; index < particleCount; index += 1) {
+    const offset = index * 3;
+    positions[offset] = (Math.random() - 0.5) * 9;
+    positions[offset + 1] = Math.random() * 5 - 1.4;
+    positions[offset + 2] = (Math.random() - 0.5) * 3.4 - 0.7;
+    seeds[index] = Math.random() * Math.PI * 2;
+  }
+
+  const particleGeometry = new THREE.BufferGeometry();
+  particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const particleMaterial = new THREE.PointsMaterial({
+    color: 0xfff0d4,
+    size: isSmallViewport ? 0.055 : 0.075,
+    transparent: true,
+    opacity: 0.22,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    sizeAttenuation: true,
+  });
+  const particleField = new THREE.Points(particleGeometry, particleMaterial);
+  particleField.userData = {
+    basePositions: positions.slice(),
+    seeds,
+  };
+  atmosphereRoot.add(particleField);
+  atmosphereParticles.push(particleField);
+
+  [
+    { radius: 1.9, color: 0xffc7de, opacity: 0.14, spin: 0.09, tilt: 0.24 },
+    { radius: 2.65, color: 0xd6c6ff, opacity: 0.1, spin: -0.065, tilt: -0.32 },
+    { radius: 3.35, color: 0xffe4b4, opacity: 0.075, spin: 0.045, tilt: 0.52 },
+  ].forEach((config, index) => {
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(config.radius, isSmallViewport ? 0.008 : 0.014, 8, 128),
+      new THREE.MeshBasicMaterial({
+        color: config.color,
+        transparent: true,
+        opacity: config.opacity,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    );
+    ring.position.set(0, 0.48 + index * 0.08, -0.85);
+    ring.rotation.set(config.tilt, index * 0.55, index * 0.3);
+    ring.userData = { phase: index * 1.8, spin: config.spin, baseScale: 1 };
+    atmosphereRoot.add(ring);
+    atmosphereRings.push(ring);
+  });
+
+  [
+    { size: 2.6, color: 0xffd2c3, opacity: 0.04 },
+    { size: 4.4, color: 0xd9c2f0, opacity: 0.028 },
+  ].forEach((config, index) => {
+    const halo = new THREE.Mesh(
+      new THREE.CircleGeometry(config.size, 64),
+      new THREE.MeshBasicMaterial({
+        color: config.color,
+        transparent: true,
+        opacity: config.opacity,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+      }),
+    );
+    halo.position.set(0, 0.42, -1.1 - index * 0.12);
+    halo.userData = { phase: index * 1.6, baseScale: 1 };
+    atmosphereRoot.add(halo);
+    atmosphereHalos.push(halo);
+  });
+}
+
+function updateAtmosphere(elapsed) {
+  atmosphereRoot.rotation.y = state.orbit * 0.035 + Math.sin(elapsed * 0.12) * 0.025;
+  atmosphereRoot.rotation.x = state.pitch * 0.045 + Math.cos(elapsed * 0.18) * 0.018;
+
+  atmosphereParticles.forEach((particleField) => {
+    const { basePositions, seeds } = particleField.userData;
+    const positions = particleField.geometry.attributes.position.array;
+
+    for (let index = 0; index < seeds.length; index += 1) {
+      const offset = index * 3;
+      const seed = seeds[index];
+      positions[offset] = basePositions[offset] + Math.sin(elapsed * 0.16 + seed) * 0.18;
+      positions[offset + 1] = basePositions[offset + 1] + Math.sin(elapsed * 0.3 + seed * 1.7) * 0.24;
+      positions[offset + 2] = basePositions[offset + 2] + Math.cos(elapsed * 0.21 + seed) * 0.12;
+    }
+
+    particleField.geometry.attributes.position.needsUpdate = true;
+    particleField.material.opacity = 0.17 + Math.sin(elapsed * 0.55) * 0.035;
+  });
+
+  atmosphereRings.forEach((ring) => {
+    const { phase, spin } = ring.userData;
+    ring.rotation.x += Math.sin(elapsed * 0.23 + phase) * 0.0008;
+    ring.rotation.y += spin * 0.002;
+    ring.rotation.z = Math.sin(elapsed * 0.17 + phase) * 0.07;
+    ring.scale.setScalar(1 + Math.sin(elapsed * 0.5 + phase) * 0.025);
+    ring.material.opacity = 0.055 + Math.sin(elapsed * 0.7 + phase) * 0.018;
+  });
+
+  atmosphereHalos.forEach((halo) => {
+    const { phase } = halo.userData;
+    halo.scale.setScalar(1 + Math.sin(elapsed * 0.32 + phase) * 0.045);
+    halo.material.opacity = 0.028 + Math.sin(elapsed * 0.48 + phase) * 0.009;
+  });
 }
 
 function createSlice(texture, index) {
@@ -179,7 +307,8 @@ async function loadModel() {
   const size = bounds.getSize(new THREE.Vector3());
   const scale = (isSmallViewport ? 2.25 : 3.2) / Math.max(size.y, 0.001);
   flower.scale.setScalar(scale);
-  flower.position.y = isSmallViewport ? -0.58 : -0.72;
+  flowerBaseY = isSmallViewport ? -0.58 : -0.72;
+  flower.position.y = flowerBaseY;
   heroRoot.add(flower);
 
   if (gltf.animations.length > 0) {
@@ -213,34 +342,43 @@ function updateScrollProgress() {
   state.frameFloat = progress * (SLICE_COUNT - 1);
 }
 
-function updateHero(delta) {
+function updateHero(delta, elapsed) {
   if (mixer && clipDuration > 0) mixer.setTime(state.scrollProgress * clipDuration);
 
   const cinematic = smoothstep(0.52, 0.95, state.scrollProgress);
   const automaticOrbit = cinematic * 0.32;
   state.orbit = damp(state.orbit, state.orbitTarget + automaticOrbit, 5, delta);
+  state.pitch = damp(state.pitch, state.pitchTarget, 5, delta);
 
-  heroRoot.rotation.y = damp(heroRoot.rotation.y, state.orbit * 0.9 + state.spread * 0.12, 4.5, delta);
+  if (flower) {
+    const breathing = prefersReducedMotion ? 0 : Math.sin(elapsed * 1.15) * 0.022;
+    flower.position.y = flowerBaseY + breathing;
+  }
+
+  heroRoot.rotation.y = damp(heroRoot.rotation.y, state.orbit + state.spread * 0.12, 4.5, delta);
+  heroRoot.rotation.x = damp(heroRoot.rotation.x, state.pitch, 4.5, delta);
   heroRoot.rotation.z = damp(heroRoot.rotation.z, Math.sin(state.scrollProgress * Math.PI) * 0.035, 4.5, delta);
+  const breathingScale = prefersReducedMotion ? 1 : 1 + Math.sin(elapsed * 1.15 + 0.8) * 0.006;
+  heroRoot.scale.setScalar(breathingScale);
 
   const cameraOrbit = state.orbit * 0.65;
   const cameraRadius = (isSmallViewport ? 10.2 : 8.7) - state.spread * (isSmallViewport ? 0.45 : 0.7);
   const targetCamera = new THREE.Vector3(
     Math.sin(cameraOrbit) * 1.65,
-    1.25 + Math.sin(state.scrollProgress * Math.PI) * 0.25,
+    1.25 + Math.sin(state.scrollProgress * Math.PI) * 0.25 + Math.sin(elapsed * 0.45) * 0.035,
     cameraRadius,
   );
   camera.position.lerp(targetCamera, prefersReducedMotion ? 1 : 1 - Math.exp(-4 * delta));
   camera.lookAt(0, 0.5, 0);
 }
 
-function updateSlices(delta) {
+function updateSlices(delta, elapsed) {
   state.spread = damp(state.spread, state.spreadTarget, 7, delta);
   const reveal = smoothstep(0.025, 0.2, state.spread);
   const center = (SLICE_COUNT - 1) / 2;
 
   timeline.rotation.y = damp(timeline.rotation.y, state.orbit * 0.28, 4, delta);
-  timeline.rotation.x = damp(timeline.rotation.x, -state.spread * 0.06, 4, delta);
+  timeline.rotation.x = damp(timeline.rotation.x, -state.spread * 0.06 + state.pitch * 0.18, 4, delta);
 
   slices.forEach((slice, index) => {
     const offset = index - center;
@@ -249,11 +387,13 @@ function updateSlices(delta) {
     const timeOpacity = 0.045 + Math.max(0, 0.13 - distance * 0.0015);
     const imageOpacity = reveal * (timeOpacity + focus * 0.12);
 
-    slice.position.x = offset * 0.055 * state.spread;
-    slice.position.y = Math.sin(index * 0.33) * 0.03 * state.spread;
-    slice.position.z = -offset * 0.12 * state.spread - 0.55;
-    slice.rotation.y = offset * 0.012 * state.spread;
-    slice.rotation.z = Math.sin(index * 0.17) * 0.012 * state.spread;
+    const drift = prefersReducedMotion ? 0 : state.spread;
+    slice.position.x = offset * 0.055 * state.spread + Math.sin(elapsed * 0.56 + index * 0.18) * 0.012 * drift;
+    slice.position.y = Math.sin(index * 0.33) * 0.03 * state.spread + Math.sin(elapsed * 0.78 + index * 0.24) * 0.028 * drift;
+    slice.position.z = -offset * 0.12 * state.spread - 0.55 + Math.cos(elapsed * 0.47 + index * 0.14) * 0.018 * drift;
+    slice.rotation.x = Math.sin(elapsed * 0.38 + index * 0.16) * 0.008 * drift;
+    slice.rotation.y = offset * 0.012 * state.spread + Math.sin(elapsed * 0.46 + index * 0.11) * 0.012 * drift;
+    slice.rotation.z = Math.sin(index * 0.17) * 0.012 * state.spread + Math.cos(elapsed * 0.52 + index * 0.2) * 0.008 * drift;
 
     slice.userData.card.material.opacity = 0.008 + reveal * (0.016 + focus * 0.014);
     slice.userData.outline.material.opacity = reveal * (0.13 + focus * 0.14);
@@ -273,16 +413,23 @@ function updateSlices(delta) {
 
 function updateInteraction() {
   const deltaX = pointer.currentX - pointer.startX;
+  const deltaY = pointer.currentY - pointer.startY;
   state.spreadTarget = clamp(pointer.startSpread + (deltaX / window.innerWidth) * 1.35, 0, 1);
-  state.orbitTarget = pointer.startOrbit + (deltaX / window.innerWidth) * 0.42;
+  // Orbit is intentionally unbounded: each drag adds angle, so repeated drags
+  // can keep turning the object through a full 360 degrees and beyond.
+  state.orbitTarget = pointer.startOrbit + deltaX * ORBIT_SENSITIVITY;
+  state.pitchTarget = clamp(pointer.startPitch - deltaY * PITCH_SENSITIVITY, -PITCH_LIMIT, PITCH_LIMIT);
 }
 
 function onPointerDown(event) {
   pointer.active = true;
   pointer.startX = event.clientX;
+  pointer.startY = event.clientY;
   pointer.currentX = event.clientX;
+  pointer.currentY = event.clientY;
   pointer.startSpread = state.spreadTarget;
   pointer.startOrbit = state.orbitTarget;
+  pointer.startPitch = state.pitchTarget;
   state.isDragging = true;
   canvas.setPointerCapture(event.pointerId);
 }
@@ -290,6 +437,7 @@ function onPointerDown(event) {
 function onPointerMove(event) {
   if (!pointer.active) return;
   pointer.currentX = event.clientX;
+  pointer.currentY = event.clientY;
   updateInteraction();
 }
 
@@ -301,7 +449,6 @@ function onPointerUp(event) {
 
 function toggleSpread() {
   state.spreadTarget = state.spreadTarget > 0.5 ? 0 : 1;
-  state.orbitTarget = state.spreadTarget > 0.5 ? 0.18 : 0;
   canvas.focus({ preventScroll: true });
 }
 
@@ -322,6 +469,11 @@ function onKeyDown(event) {
     event.preventDefault();
     state.spreadTarget = 1;
   }
+  if (event.key.toLowerCase() === 'r') {
+    event.preventDefault();
+    state.orbitTarget = 0;
+    state.pitchTarget = 0.08;
+  }
 }
 
 function resize() {
@@ -334,6 +486,7 @@ function resize() {
 
 async function boot() {
   resize();
+  createAtmosphere();
   window.addEventListener('resize', resize, { passive: true });
   window.addEventListener('scroll', updateScrollProgress, { passive: true });
   canvas.addEventListener('pointerdown', onPointerDown);
@@ -361,9 +514,11 @@ async function boot() {
 
 function render() {
   const delta = Math.min(clock.getDelta(), 0.05);
+  animationTime += delta;
   updateScrollProgress();
-  updateHero(delta);
-  updateSlices(delta);
+  updateHero(delta, animationTime);
+  updateSlices(delta, animationTime);
+  updateAtmosphere(animationTime);
   renderer.render(scene, camera);
   requestAnimationFrame(render);
 }
