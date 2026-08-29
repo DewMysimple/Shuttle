@@ -10,7 +10,6 @@ const canvas = document.querySelector('#scene');
 const section = document.querySelector('.slice-section');
 const frameCounter = document.querySelector('#frame-counter');
 const stageStatus = document.querySelector('#stage-status');
-const stageHint = document.querySelector('#stage-hint');
 const loadingPanel = document.querySelector('#loading-panel');
 const loadingPercent = document.querySelector('#loading-percent');
 const loadingBarFill = document.querySelector('#loading-bar-fill');
@@ -268,7 +267,6 @@ function updateSlices(delta) {
     frameCounter.textContent = `FRAME ${String(frame).padStart(2, '0')} / ${SLICE_COUNT}`;
   }
 
-  stageHint.classList.toggle('is-hidden', state.spread > 0.08 || state.scrollProgress > 0.08);
   expandButton.setAttribute('aria-pressed', String(state.spreadTarget > 0.5));
   expandButton.textContent = state.spreadTarget > 0.5 ? '收拢切片' : '展开切片';
 }

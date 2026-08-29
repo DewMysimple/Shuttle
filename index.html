@@ -7,27 +7,7 @@
     <title>杜鹃花 · 3D 时间切片</title>
   </head>
   <body>
-    <main>
-      <section class="intro-panel">
-        <div class="intro-panel__copy">
-          <p class="kicker">Rhododendron / temporal study 01</p>
-          <h1>一朵花，<br /><em>76 个瞬间。</em></h1>
-          <p class="intro-panel__lede">
-            把一段骨骼动画切成时间的薄片。向下滚动，穿过花开的动作；向右拖动，
-            把被压扁的时间拉成一条可以观看的空间轴。
-          </p>
-          <a class="intro-panel__link" href="#time-slices">
-            <span>进入时间切片</span>
-            <span aria-hidden="true">↘</span>
-          </a>
-        </div>
-        <div class="intro-panel__index" aria-hidden="true">
-          <span>形态 / 01</span>
-          <span>24 FPS</span>
-          <span>420 FRAMES</span>
-        </div>
-      </section>
-
+    <main class="single-interface">
       <section id="time-slices" class="slice-section" aria-label="杜鹃花三维时间切片">
         <div class="slice-stage">
           <div class="stage-header">
@@ -42,12 +22,6 @@
           </div>
 
           <canvas id="scene" tabindex="0" aria-label="时间切片三维场景，可滚动或水平拖拽"></canvas>
-
-          <div class="stage-hint" id="stage-hint">
-            <span class="stage-hint__line"></span>
-            <p class="stage-hint__title">滚动逐帧穿过</p>
-            <p class="stage-hint__body">水平拖拽，把时间向外展开</p>
-          </div>
 
           <div class="loading-panel" id="loading-panel" role="status" aria-live="polite">
             <div class="loading-panel__topline">
@@ -69,16 +43,6 @@
             <span>scroll / drag / explore</span>
           </div>
         </div>
-      </section>
-
-      <section class="outro-panel">
-        <div>
-          <p class="kicker">A small archive of motion</p>
-          <h2>当时间不再是一条线，<br /><em>动作就有了厚度。</em></h2>
-        </div>
-        <p class="outro-panel__note">
-          由杜鹃花骨骼动画生成。76 个采样状态，被放回一个可以拖动的三维空间。
-        </p>
       </section>
     </main>
     <script type="module" src="/src/main.js"></script>
