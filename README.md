@@ -4,6 +4,8 @@
 
 `C:\Users\Administrator\Desktop\Free\兰花_形态1.blend`
 
+工程记忆：快速交接看 [`wiki_memory/README.md`](./wiki_memory/README.md)，完整历史兼容记录看 [`PROJECT_MEMORY.md`](./PROJECT_MEMORY.md)。结构化记忆的维护协议位于 [`wiki_memory/AGENTS.md`](./wiki_memory/AGENTS.md)。
+
 ## 生成网页素材
 
 在 PowerShell 中执行：
