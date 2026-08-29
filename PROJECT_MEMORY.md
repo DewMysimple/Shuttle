@@ -9,15 +9,19 @@
 - 2026-08-30：按视觉稿收敛为单一主界面。删除独立引导页、结尾说明页和画布中央的额外提示，只保留固定舞台、杜鹃花模型、时间切片、帧数信息、拖拽提示和展开按钮。
 - 同次修改将主界面的滚动区调整为 520vh，继续保留滚动逐帧和水平拖拽交互。
 - 验证结果：页面只包含 1 个主 section；首屏状态为 `FRAME 01 / 76`；滚动到中段可到 `FRAME 47 / 76`；展开按钮可切换为“收拢切片”；桌面端 1440×900 首屏加载完成后 loading 面板自动隐藏。
+- 2026-08-30：主体模型替换为 `兰花_形态1.blend`。该文件使用 1–166 帧的 Alembic MeshSequenceCache，不是骨骼 Action；导出脚本现在会生成 76 个 morph targets 和对应动画，再导出 GLB 与 PNG 切片。
+- 兰花缓存路径已确认存在于外部素材库：`C:\Users\Administrator\Desktop\Verminoble\blender_scenebench\blender_modelbench\兰花\形态1\alembic\alembic\OrchidMeshGrp.abc`。缓存约 106 MB，仅用于重新导出，不提交到网页仓库。
+- 本次替换验证：GLB 包含 77 个 shape keys（Basis + 76 帧）和 `Orchid_Time_Slices` 动画；重新生成 76 张 PNG；网页标题、加载文案和主界面标签均已改为兰花。
+- 2026-08-30：移除之前为贴近参考图而额外生成的棕色展示台。当前 GLB 只包含兰花 morph animation，页面不再显示圆台；时间切片本身也只渲染兰花。
 - 工程约定：每次代码或视觉修改都必须同步更新本文，完成独立 Git 提交并推送到 `origin/main`。
 
 ## 1. 项目目标
 
-制作一个独立的 Three.js/Vite 互动作品页，主体是杜鹃花，不是参考视频中的蝴蝶。
+制作一个独立的 Three.js/Vite 互动作品页，主体是兰花，不是参考视频中的蝴蝶。
 
 核心体验：
 
-- 页面滚动逐帧穿过杜鹃花骨骼动画。
+- 页面滚动逐帧穿过兰花形态动画。
 - 动画被均匀采样为 76 个时间状态。
 - 水平拖拽让 76 张透明时间切片沿空间轴展开或收拢。
 - 展开后能看到连续的 3D 时间轨迹、遮挡关系和透视变化。
@@ -32,9 +36,9 @@
 
 实际使用的源文件是：
 
-`C:\Users\Administrator\Desktop\Free\杜鹃花_形态1.blend`
+`C:\Users\Administrator\Desktop\Free\兰花_形态1.blend`
 
-曾出现过的 `C:\Users\Administrator\Desktop\Free\杜鹃花\_形态1.blend` 不是实际路径。原始文件位于本工程目录外，不进入 Git 仓库。
+当前使用的实际路径是 `C:\Users\Administrator\Desktop\Free\兰花_形态1.blend`。曾输入过的 `C:\Users\Administrator\Desktop\Free\兰花\_形态1.blend` 不存在；兰花源文件位于本工程目录外，不进入 Git 仓库。
 
 使用 Blender：
 
@@ -42,17 +46,17 @@
 
 Blender 检查结果：
 
-- 场景：`杜鹃花_模型展示`
-- 帧范围：1–420
-- 帧率：24 fps，约 17.5 秒
-- 骨架对象：`源文件_昆虫骨架`
-- 骨骼数量：64
-- 动画 Action：`Insect|Insect|fly`
-- 杜鹃花模型：`杜鹃花_高模`
-- 展示台：`展示台_杜鹃花`
+- 场景：`兰花_形态1_模型展示`
+- 帧范围：1–166
+- 帧率：30 fps，约 5.5 秒
+- 动画对象：`兰花_形态1_动画缓存`
+- 动画类型：MeshSequenceCache，使用 `OrchidMeshGrp.abc`
+- 缓存网格：8502 vertices、8488 polygons
+- 三组静态源形态：闭合、半闭合、开放
+- 当前不导出展示台，GLB 和时间切片只包含兰花主体
 - Blender 相机本身没有动画
-- 4 张杜鹃花贴图已打包在 `.blend` 中，尺寸为 2048×2048
-- 模型包含 ARMATURE modifier，没有 Shape Keys
+- 4 张兰花贴图已打包在 `.blend` 中，尺寸为 1024×1024
+- Blender 文件没有 Actions 或 Shape Keys；网页用烘焙后的 morph targets 接收动画
 
 外层素材目录 `C:\Users\Administrator\Desktop\Free\形态1` 还包含原始 FBX、MAX 和贴图，但网页导出不依赖它们。
 
@@ -64,7 +68,7 @@ Blender 检查结果：
 
 采用混合方案：
 
-1. `flower.glb`：实时加载杜鹃花模型和真实骨骼动画。
+1. `flower.glb`：实时加载兰花模型和 Alembic 烘焙后的 morph animation。
 2. `frame-001.png` 至 `frame-076.png`：Blender 透明渲染得到的 76 张时间切片，用于形成可展开的空间轨迹。
 3. Three.js：负责 GLB、AnimationMixer、切片卡片、相机和交互。
 4. CSS：负责页面渐变、雾光、信息层、布局和移动端适配。
@@ -104,7 +108,7 @@ rhododendron-time-slices/
 │  ├─ main.js                         Three.js 场景、动画和交互
 │  └─ style.css                       粉彩视觉、布局、响应式样式
 ├─ scripts/
-│  └─ export_blender_assets.py        Blender GLB/切片自动导出脚本
+│  └─ export_blender_assets.py        Blender Alembic→GLB/切片自动导出脚本
 ├─ public/assets/
 │  ├─ flower.glb                       自包含运行模型
 │  ├─ slice-manifest.json              76 帧清单
@@ -121,7 +125,7 @@ rhododendron-time-slices/
 2. 用 Blender 只读检查场景、对象、动画、骨骼和贴图。
 3. 确认参考视频后段确实包含 3D 场景旋转和时间切片视觉。
 4. 创建 Vite + Three.js 独立工程。
-5. 编写 Blender 自动处理脚本，导出自包含 `flower.glb`，并采样 76 张透明 PNG。
+5. 编写 Blender 自动处理脚本，将兰花 Alembic 缓存烘焙为 morph targets，导出自包含 `flower.glb`，并采样 76 张透明 PNG。
 6. 实现实时 GLB 动画、时间切片、滚动映射、水平拖拽和镜头绕行。
 7. 完成粉彩渐变、透明卡片、雾光、响应式和 reduced-motion 处理。
 8. 执行 `npm install` 和 `npm run build`，构建成功。
@@ -130,7 +134,8 @@ rhododendron-time-slices/
 
 ## 6. 已知限制与处理方式
 
-- glTF 导出会将每个顶点的骨骼影响限制为最多 4 根，并重新归一化权重。这是 glTF 常见约束；如果后续发现姿态和 Blender 明显不一致，应在导出脚本中烘焙动画或提高时间切片的视觉权重。
+- 兰花源文件不是骨骼动画，而是依赖外部 Alembic MeshSequenceCache。导出脚本已将每个采样帧烘焙为 shape key，并建立 `Orchid_Time_Slices` morph animation；重新导出时必须提供 `OrchidMeshGrp.abc`。
+- Alembic 缓存约 106 MB，不进入 Git 或网页运行时；如果换机器，需要重新提供缓存路径。
 - Blender 原相机无动画，所以网页镜头绕行是基于当前进度的 Three.js 重建，不是从 Blender 相机直接导出。
 - 时间切片使用 RGBA PNG，而不是直接使用视频帧，以保留透明边缘并避免把 3444×1936 的视频帧全部带入网页。
 - 目前没有加入重型后处理 Bloom，主要使用渐变、透明材质、边缘线和雾光完成视觉；如性能允许，后续可以增加桌面端轻量 Bloom。
@@ -148,7 +153,7 @@ npm run dev
 重新从 Blender 生成运行资产：
 
 ```powershell
-& 'F:\Blender\blender.exe' --background --factory-startup 'C:\Users\Administrator\Desktop\Free\杜鹃花_形态1.blend' --python '.\scripts\export_blender_assets.py' -- "$PWD\public\assets"
+& 'F:\Blender\blender.exe' --background --factory-startup 'C:\Users\Administrator\Desktop\Free\兰花_形态1.blend' --python '.\scripts\export_blender_assets.py' -- "$PWD\public\assets" 'C:\Users\Administrator\Desktop\Verminoble\blender_scenebench\blender_modelbench\兰花\形态1\alembic\alembic\OrchidMeshGrp.abc'
 ```
 
 生产构建：

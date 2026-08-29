@@ -5,13 +5,23 @@ from pathlib import Path
 import bpy
 
 
-def parse_output_directory():
+SLICE_COUNT = 76
+
+
+def parse_arguments():
     if "--" not in sys.argv:
-        raise SystemExit("Usage: blender -b input.blend --python export_blender_assets.py -- output_dir")
+        raise SystemExit(
+            "Usage: blender -b input.blend --python export_blender_assets.py -- output_dir [alembic_cache]"
+        )
+
     separator = sys.argv.index("--")
-    if separator + 1 >= len(sys.argv):
+    arguments = sys.argv[separator + 1 :]
+    if not arguments:
         raise SystemExit("Missing output directory")
-    return Path(sys.argv[separator + 1]).resolve()
+
+    output_directory = Path(arguments[0]).resolve()
+    cache_path = Path(arguments[1]).resolve() if len(arguments) > 1 else None
+    return output_directory, cache_path
 
 
 def select_objects(objects):
@@ -23,19 +33,136 @@ def select_objects(objects):
     bpy.context.view_layer.objects.active = objects[0]
 
 
-def export_glb(output_path, model, armature, stage):
-    select_objects([model, armature, stage])
+def configure_mesh_cache(model, supplied_cache_path):
+    cache_modifier = next(
+        (modifier for modifier in model.modifiers if modifier.type == "MESH_SEQUENCE_CACHE"),
+        None,
+    )
+    if cache_modifier is None or cache_modifier.cache_file is None:
+        return None
+
+    cache_path = supplied_cache_path or Path(bpy.path.abspath(cache_modifier.cache_file.filepath))
+    if not cache_path.exists():
+        raise RuntimeError(
+            "The orchid animation cache is missing. Provide the .abc path as the second export argument: "
+            f"{cache_path}"
+        )
+
+    cache_modifier.cache_file.filepath = str(cache_path)
+    return cache_path
+
+
+def sample_frames(scene):
+    start_frame = scene.frame_start
+    end_frame = scene.frame_end
+    return [
+        int(round(start_frame + index * (end_frame - start_frame) / (SLICE_COUNT - 1)))
+        for index in range(SLICE_COUNT)
+    ]
+
+
+def evaluated_mesh(source, depsgraph):
+    evaluated = source.evaluated_get(depsgraph)
+    mesh = evaluated.to_mesh(preserve_all_data_layers=True, depsgraph=depsgraph)
+    return evaluated, mesh
+
+
+def copy_material_slots(source, target):
+    for slot in source.material_slots:
+        if slot.material:
+            target.data.materials.append(slot.material)
+
+
+def bake_mesh_sequence(scene, source, frames):
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    scene.frame_set(frames[0])
+    bpy.context.view_layer.update()
+
+    evaluated = source.evaluated_get(depsgraph)
+    baked_mesh = bpy.data.meshes.new_from_object(
+        evaluated,
+        depsgraph=depsgraph,
+        preserve_all_data_layers=True,
+    )
+    baked_model = bpy.data.objects.new("兰花_时间切片模型", baked_mesh)
+    bpy.context.scene.collection.objects.link(baked_model)
+    baked_model.matrix_world = source.matrix_world.copy()
+    copy_material_slots(source, baked_model)
+
+    basis = baked_model.shape_key_add(name="Basis")
+    if len(basis.data) == 0:
+        raise RuntimeError("The orchid mesh has no vertices after evaluating its Alembic cache")
+
+    shape_key_blocks = []
+    for index, frame in enumerate(frames):
+        scene.frame_set(frame)
+        bpy.context.view_layer.update()
+        evaluated, sampled_mesh = evaluated_mesh(source, depsgraph)
+        try:
+            if len(sampled_mesh.vertices) != len(basis.data):
+                raise RuntimeError(
+                    f"Orchid vertex count changed at frame {frame}: "
+                    f"expected {len(basis.data)}, got {len(sampled_mesh.vertices)}"
+                )
+
+            shape_key = baked_model.shape_key_add(name=f"Frame_{index + 1:03d}")
+            for target_vertex, source_vertex in zip(shape_key.data, sampled_mesh.vertices):
+                target_vertex.co = source_vertex.co
+            shape_key_blocks.append(shape_key)
+        finally:
+            evaluated.to_mesh_clear()
+
+    create_shape_key_animation(baked_model, shape_key_blocks, frames)
+    return baked_model
+
+
+def create_shape_key_animation(model, shape_key_blocks, frames):
+    shape_keys = model.data.shape_keys
+    action = bpy.data.actions.new("Orchid_Time_Slices")
+    shape_keys.animation_data_create()
+    shape_keys.animation_data.action = action
+
+    for index, shape_key in enumerate(shape_key_blocks):
+        fcurve = action.fcurve_ensure_for_datablock(
+            shape_keys,
+            f'key_blocks["{shape_key.name}"].value',
+        )
+
+        if index == 0:
+            key_points = [(frames[0], 1.0), (frames[1], 0.0)]
+        elif index == len(shape_key_blocks) - 1:
+            key_points = [(frames[-2], 0.0), (frames[-1], 1.0)]
+        else:
+            key_points = [
+                (frames[index - 1], 0.0),
+                (frames[index], 1.0),
+                (frames[index + 1], 0.0),
+            ]
+
+        for frame, value in key_points:
+            point = fcurve.keyframe_points.insert(frame, value)
+            point.interpolation = "LINEAR"
+
+    for shape_key in shape_key_blocks:
+        shape_key.value = 0.0
+    shape_key_blocks[0].value = 1.0
+
+
+def export_glb(output_path, model):
+    select_objects([model])
     bpy.ops.export_scene.gltf(
         filepath=str(output_path),
         export_format="GLB",
         use_selection=True,
         export_animations=True,
-        export_skins=True,
+        export_skins=False,
+        export_morph=True,
         export_materials="EXPORT",
+        export_apply=True,
     )
 
 
-def render_slices(output_directory, scene, model):
+def render_slices(output_directory, scene, model, frames):
     slice_directory = output_directory / "slices"
     slice_directory.mkdir(parents=True, exist_ok=True)
 
@@ -46,7 +173,9 @@ def render_slices(output_directory, scene, model):
         "resolution_percentage": scene.render.resolution_percentage,
         "file_format": scene.render.image_settings.file_format,
         "color_mode": scene.render.image_settings.color_mode,
-        "quality": getattr(scene.render.image_settings, "quality", None),
+        "filepath": scene.render.filepath,
+        "frame_current": scene.frame_current,
+        "hide_render": {obj.name: obj.hide_render for obj in bpy.data.objects if obj.type == "MESH"},
     }
 
     renderable_meshes = [obj for obj in bpy.data.objects if obj.type == "MESH"]
@@ -60,15 +189,10 @@ def render_slices(output_directory, scene, model):
     scene.render.image_settings.file_format = "PNG"
     scene.render.image_settings.color_mode = "RGBA"
 
-    start_frame = scene.frame_start
-    end_frame = scene.frame_end
     frame_map = []
-
-    for index in range(76):
-        normalized = index / 75
-        frame = int(round(start_frame + normalized * (end_frame - start_frame)))
+    for index, frame in enumerate(frames):
         scene.frame_set(frame)
-        output_path = slice_directory / f"frame-{index + 1:03d}.webp"
+        output_path = slice_directory / f"frame-{index + 1:03d}.png"
         scene.render.filepath = str(output_path)
         bpy.ops.render.render(write_still=True)
         frame_map.append({"index": index, "sourceFrame": frame})
@@ -79,18 +203,19 @@ def render_slices(output_directory, scene, model):
     scene.render.resolution_percentage = original["resolution_percentage"]
     scene.render.image_settings.file_format = original["file_format"]
     scene.render.image_settings.color_mode = original["color_mode"]
-    if original["quality"] is not None and hasattr(scene.render.image_settings, "quality"):
-        scene.render.image_settings.quality = original["quality"]
+    scene.render.filepath = original["filepath"]
+    scene.frame_set(original["frame_current"])
 
     for obj in renderable_meshes:
-        obj.hide_render = False
+        obj.hide_render = original["hide_render"].get(obj.name, False)
 
     (output_directory / "slice-manifest.json").write_text(
         json.dumps(
             {
-                "count": 76,
-                "sourceFrameStart": start_frame,
-                "sourceFrameEnd": end_frame,
+                "count": SLICE_COUNT,
+                "sourceFrameStart": scene.frame_start,
+                "sourceFrameEnd": scene.frame_end,
+                "animationType": "alembic-baked-morph-targets",
                 "frames": frame_map,
             },
             ensure_ascii=False,
@@ -100,29 +225,33 @@ def render_slices(output_directory, scene, model):
     )
 
 
+def find_orchid_model():
+    model = bpy.data.objects.get("兰花_形态1_动画缓存")
+    if model and model.type == "MESH":
+        return model
+
+    model = bpy.data.objects.get("源文件_形态1_FBX_OrchidMeshGrp")
+    if model and model.type == "MESH":
+        return model
+
+    raise RuntimeError("Missing orchid mesh: expected 兰花_形态1_动画缓存")
+
+
 def main():
-    output_directory = parse_output_directory()
+    output_directory, supplied_cache_path = parse_arguments()
     output_directory.mkdir(parents=True, exist_ok=True)
 
-    scene = bpy.data.scenes.get("杜鹃花_模型展示") or bpy.context.scene
-    model = bpy.data.objects.get("杜鹃花_高模")
-    armature = bpy.data.objects.get("源文件_昆虫骨架")
-    stage = bpy.data.objects.get("展示台_杜鹃花")
-    missing = [
-        name
-        for name, obj in (
-            ("杜鹃花_高模", model),
-            ("源文件_昆虫骨架", armature),
-            ("展示台_杜鹃花", stage),
-        )
-        if obj is None
-    ]
-    if missing:
-        raise RuntimeError(f"Missing required objects: {', '.join(missing)}")
+    scene = bpy.context.scene
+    model = find_orchid_model()
+    cache_path = configure_mesh_cache(model, supplied_cache_path)
+    if cache_path:
+        print(f"Using orchid animation cache: {cache_path}")
 
-    export_glb(output_directory / "flower.glb", model, armature, stage)
-    render_slices(output_directory, scene, model)
-    print(f"Exported assets to {output_directory}")
+    frames = sample_frames(scene)
+    baked_model = bake_mesh_sequence(scene, model, frames)
+    export_glb(output_directory / "flower.glb", baked_model)
+    render_slices(output_directory, scene, baked_model, frames)
+    print(f"Exported orchid assets to {output_directory}")
 
 
 if __name__ == "__main__":

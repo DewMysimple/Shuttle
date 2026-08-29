@@ -1,7 +1,8 @@
 {
   "count": 76,
   "sourceFrameStart": 1,
-  "sourceFrameEnd": 420,
+  "sourceFrameEnd": 166,
+  "animationType": "alembic-baked-morph-targets",
   "frames": [
     {
       "index": 0,
@@ -9,303 +10,303 @@
     },
     {
       "index": 1,
-      "sourceFrame": 7
+      "sourceFrame": 3
     },
     {
       "index": 2,
-      "sourceFrame": 12
+      "sourceFrame": 5
     },
     {
       "index": 3,
-      "sourceFrame": 18
+      "sourceFrame": 8
     },
     {
       "index": 4,
-      "sourceFrame": 23
+      "sourceFrame": 10
     },
     {
       "index": 5,
-      "sourceFrame": 29
+      "sourceFrame": 12
     },
     {
       "index": 6,
-      "sourceFrame": 35
+      "sourceFrame": 14
     },
     {
       "index": 7,
-      "sourceFrame": 40
+      "sourceFrame": 16
     },
     {
       "index": 8,
-      "sourceFrame": 46
+      "sourceFrame": 19
     },
     {
       "index": 9,
-      "sourceFrame": 51
+      "sourceFrame": 21
     },
     {
       "index": 10,
-      "sourceFrame": 57
+      "sourceFrame": 23
     },
     {
       "index": 11,
-      "sourceFrame": 62
+      "sourceFrame": 25
     },
     {
       "index": 12,
-      "sourceFrame": 68
+      "sourceFrame": 27
     },
     {
       "index": 13,
-      "sourceFrame": 74
+      "sourceFrame": 30
     },
     {
       "index": 14,
-      "sourceFrame": 79
+      "sourceFrame": 32
     },
     {
       "index": 15,
-      "sourceFrame": 85
+      "sourceFrame": 34
     },
     {
       "index": 16,
-      "sourceFrame": 90
+      "sourceFrame": 36
     },
     {
       "index": 17,
-      "sourceFrame": 96
+      "sourceFrame": 38
     },
     {
       "index": 18,
-      "sourceFrame": 102
+      "sourceFrame": 41
     },
     {
       "index": 19,
-      "sourceFrame": 107
+      "sourceFrame": 43
     },
     {
       "index": 20,
-      "sourceFrame": 113
+      "sourceFrame": 45
     },
     {
       "index": 21,
-      "sourceFrame": 118
+      "sourceFrame": 47
     },
     {
       "index": 22,
-      "sourceFrame": 124
+      "sourceFrame": 49
     },
     {
       "index": 23,
-      "sourceFrame": 129
+      "sourceFrame": 52
     },
     {
       "index": 24,
-      "sourceFrame": 135
+      "sourceFrame": 54
     },
     {
       "index": 25,
-      "sourceFrame": 141
+      "sourceFrame": 56
     },
     {
       "index": 26,
-      "sourceFrame": 146
+      "sourceFrame": 58
     },
     {
       "index": 27,
-      "sourceFrame": 152
+      "sourceFrame": 60
     },
     {
       "index": 28,
-      "sourceFrame": 157
+      "sourceFrame": 63
     },
     {
       "index": 29,
-      "sourceFrame": 163
+      "sourceFrame": 65
     },
     {
       "index": 30,
-      "sourceFrame": 169
+      "sourceFrame": 67
     },
     {
       "index": 31,
-      "sourceFrame": 174
+      "sourceFrame": 69
     },
     {
       "index": 32,
-      "sourceFrame": 180
+      "sourceFrame": 71
     },
     {
       "index": 33,
-      "sourceFrame": 185
+      "sourceFrame": 74
     },
     {
       "index": 34,
-      "sourceFrame": 191
+      "sourceFrame": 76
     },
     {
       "index": 35,
-      "sourceFrame": 197
+      "sourceFrame": 78
     },
     {
       "index": 36,
-      "sourceFrame": 202
+      "sourceFrame": 80
     },
     {
       "index": 37,
-      "sourceFrame": 208
+      "sourceFrame": 82
     },
     {
       "index": 38,
-      "sourceFrame": 213
+      "sourceFrame": 85
     },
     {
       "index": 39,
-      "sourceFrame": 219
+      "sourceFrame": 87
     },
     {
       "index": 40,
-      "sourceFrame": 224
+      "sourceFrame": 89
     },
     {
       "index": 41,
-      "sourceFrame": 230
+      "sourceFrame": 91
     },
     {
       "index": 42,
-      "sourceFrame": 236
+      "sourceFrame": 93
     },
     {
       "index": 43,
-      "sourceFrame": 241
+      "sourceFrame": 96
     },
     {
       "index": 44,
-      "sourceFrame": 247
+      "sourceFrame": 98
     },
     {
       "index": 45,
-      "sourceFrame": 252
+      "sourceFrame": 100
     },
     {
       "index": 46,
-      "sourceFrame": 258
+      "sourceFrame": 102
     },
     {
       "index": 47,
-      "sourceFrame": 264
+      "sourceFrame": 104
     },
     {
       "index": 48,
-      "sourceFrame": 269
+      "sourceFrame": 107
     },
     {
       "index": 49,
-      "sourceFrame": 275
+      "sourceFrame": 109
     },
     {
       "index": 50,
-      "sourceFrame": 280
+      "sourceFrame": 111
     },
     {
       "index": 51,
-      "sourceFrame": 286
+      "sourceFrame": 113
     },
     {
       "index": 52,
-      "sourceFrame": 292
+      "sourceFrame": 115
     },
     {
       "index": 53,
-      "sourceFrame": 297
+      "sourceFrame": 118
     },
     {
       "index": 54,
-      "sourceFrame": 303
+      "sourceFrame": 120
     },
     {
       "index": 55,
-      "sourceFrame": 308
+      "sourceFrame": 122
     },
     {
       "index": 56,
-      "sourceFrame": 314
+      "sourceFrame": 124
     },
     {
       "index": 57,
-      "sourceFrame": 319
+      "sourceFrame": 126
     },
     {
       "index": 58,
-      "sourceFrame": 325
+      "sourceFrame": 129
     },
     {
       "index": 59,
-      "sourceFrame": 331
+      "sourceFrame": 131
     },
     {
       "index": 60,
-      "sourceFrame": 336
+      "sourceFrame": 133
     },
     {
       "index": 61,
-      "sourceFrame": 342
+      "sourceFrame": 135
     },
     {
       "index": 62,
-      "sourceFrame": 347
+      "sourceFrame": 137
     },
     {
       "index": 63,
-      "sourceFrame": 353
+      "sourceFrame": 140
     },
     {
       "index": 64,
-      "sourceFrame": 359
+      "sourceFrame": 142
     },
     {
       "index": 65,
-      "sourceFrame": 364
+      "sourceFrame": 144
     },
     {
       "index": 66,
-      "sourceFrame": 370
+      "sourceFrame": 146
     },
     {
       "index": 67,
-      "sourceFrame": 375
+      "sourceFrame": 148
     },
     {
       "index": 68,
-      "sourceFrame": 381
+      "sourceFrame": 151
     },
     {
       "index": 69,
-      "sourceFrame": 386
+      "sourceFrame": 153
     },
     {
       "index": 70,
-      "sourceFrame": 392
+      "sourceFrame": 155
     },
     {
       "index": 71,
-      "sourceFrame": 398
+      "sourceFrame": 157
     },
     {
       "index": 72,
-      "sourceFrame": 403
+      "sourceFrame": 159
     },
     {
       "index": 73,
-      "sourceFrame": 409
+      "sourceFrame": 162
     },
     {
       "index": 74,
-      "sourceFrame": 414
+      "sourceFrame": 164
     },
     {
       "index": 75,
-      "sourceFrame": 420
+      "sourceFrame": 166
     }
   ]
 }

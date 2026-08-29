@@ -345,7 +345,7 @@ async function boot() {
 
   try {
     setStageStatus('载入模型');
-    setLoading(0.08, '载入杜鹃花骨骼动画');
+    setLoading(0.08, '载入兰花形态动画');
     await loadModel();
     setLoading(0.2, '模型就绪，准备 76 个时间切片');
     await loadSlices();
