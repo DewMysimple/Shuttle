@@ -21,7 +21,7 @@
             </div>
           </div>
 
-          <canvas id="scene" tabindex="0" aria-label="时间切片三维场景，可滚动切换帧，并拖拽旋转视角"></canvas>
+          <canvas id="scene" tabindex="0" aria-label="时间切片三维场景，长按播放，滚轮缩放，拖拽旋转视角"></canvas>
 
           <div class="loading-panel" id="loading-panel" role="status" aria-live="polite">
             <div class="loading-panel__topline">
@@ -34,13 +34,13 @@
 
           <div class="stage-footer">
             <div class="stage-footer__instruction">
-              <span class="gesture-icon" aria-hidden="true">↔</span>
-              <span>Drag to rotate 360° · button to unfold</span>
+              <span class="gesture-icon" aria-hidden="true">◎</span>
+              <span>Hold to play · wheel to zoom</span>
             </div>
             <button class="expand-button" id="expand-button" type="button" aria-pressed="false">
               展开切片
             </button>
-            <span>scroll / rotate / unfold</span>
+            <span>hold / wheel / rotate</span>
           </div>
         </div>
       </section>

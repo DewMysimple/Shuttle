@@ -10,14 +10,19 @@ const IMAGE_HEIGHT = 1.54;
 const DEPTH_STEP = 0.3;
 const LATERAL_STEP = 0.16;
 const DRAG_DEADZONE = 8;
+const LONG_PRESS_DELAY = 260;
+const PLAYBACK_FPS = 30;
 const YAW_PER_VIEWPORT = Math.PI * 1.4;
 const PITCH_PER_VIEWPORT = THREE.MathUtils.degToRad(56);
 const PITCH_LIMIT = THREE.MathUtils.degToRad(28);
 const ROTATION_DRAG_SMOOTHING = 9;
 const ROTATION_RELEASE_SMOOTHING = 7;
+const CAMERA_ZOOM_SMOOTHING = 8;
+const CAMERA_ZOOM_SENSITIVITY = 0.008;
+const CAMERA_MIN_DISTANCE = 5.8;
+const CAMERA_MAX_DISTANCE = 15.5;
 
 const canvas = document.querySelector('#scene');
-const section = document.querySelector('.slice-section');
 const frameCounter = document.querySelector('#frame-counter');
 const stageStatus = document.querySelector('#stage-status');
 const loadingPanel = document.querySelector('#loading-panel');
@@ -27,7 +32,6 @@ const loadingDetail = document.querySelector('#loading-detail');
 const expandButton = document.querySelector('#expand-button');
 
 const state = {
-  scrollProgress: 0,
   frameFloat: 0,
   spread: INITIAL_SPREAD,
   spreadTarget: INITIAL_SPREAD,
@@ -36,6 +40,7 @@ const state = {
   pitch: 0.08,
   pitchTarget: 0.08,
   isDragging: false,
+  isPlaying: false,
 };
 
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -51,11 +56,18 @@ const pointer = {
   lastX: 0,
   lastY: 0,
   moved: false,
+  longPressReady: false,
+  longPressTimer: 0,
 };
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(33, 1, 0.1, 100);
-camera.position.set(0, 1.25, isSmallViewport ? 10.2 : 8.7);
+const defaultCameraDistance = isSmallViewport ? 10.2 : 8.7;
+const cameraZoom = {
+  current: defaultCameraDistance,
+  target: defaultCameraDistance,
+};
+camera.position.set(0, 1.25, defaultCameraDistance);
 camera.lookAt(0, 0.5, 0);
 
 const renderer = new THREE.WebGLRenderer({
@@ -343,12 +355,21 @@ async function loadSlices() {
   textures.forEach(createSlice);
 }
 
-function updateScrollProgress() {
-  const rect = section.getBoundingClientRect();
-  const scrollLength = Math.max(section.offsetHeight - window.innerHeight, 1);
-  const progress = clamp(-rect.top / scrollLength, 0, 1);
-  state.scrollProgress = progress;
-  state.frameFloat = progress * Math.max(sliceCount - 1, 0);
+function updatePlayback(delta) {
+  if (!state.isPlaying || sliceCount < 2) return;
+
+  state.frameFloat += delta * PLAYBACK_FPS;
+  if (state.frameFloat < sliceCount - 1) return;
+
+  state.frameFloat = sliceCount - 1;
+  state.isPlaying = false;
+  setStageStatus('播放结束');
+}
+
+function updateCamera(delta) {
+  cameraZoom.current = damp(cameraZoom.current, cameraZoom.target, CAMERA_ZOOM_SMOOTHING, delta);
+  camera.position.z = cameraZoom.current;
+  camera.lookAt(0, 0.5, 0);
 }
 
 function updateRotation(delta) {
@@ -410,11 +431,14 @@ function updateSlices(delta, elapsed) {
 }
 
 function updateInteraction() {
+  if (state.isPlaying && pointer.longPressReady) return;
+
   const totalX = pointer.currentX - pointer.startX;
   const totalY = pointer.currentY - pointer.startY;
 
   if (!pointer.moved) {
     if (Math.hypot(totalX, totalY) < DRAG_DEADZONE) return;
+    clearLongPressTimer();
     pointer.moved = true;
     pointer.lastX = pointer.currentX;
     pointer.lastY = pointer.currentY;
@@ -433,6 +457,26 @@ function updateInteraction() {
   pointer.lastY = pointer.currentY;
 }
 
+function clearLongPressTimer() {
+  if (!pointer.longPressTimer) return;
+  window.clearTimeout(pointer.longPressTimer);
+  pointer.longPressTimer = 0;
+}
+
+function beginPlayback() {
+  if (sliceCount < 2) return;
+  if (state.frameFloat >= sliceCount - 1) state.frameFloat = 0;
+  state.isPlaying = true;
+  state.isDragging = false;
+  setStageStatus('播放中');
+}
+
+function pausePlayback() {
+  if (!state.isPlaying) return;
+  state.isPlaying = false;
+  setStageStatus('已暂停');
+}
+
 function onPointerDown(event) {
   pointer.active = true;
   pointer.startX = event.clientX;
@@ -442,8 +486,16 @@ function onPointerDown(event) {
   pointer.lastX = event.clientX;
   pointer.lastY = event.clientY;
   pointer.moved = false;
+  pointer.longPressReady = false;
+  clearLongPressTimer();
   state.isDragging = true;
   canvas.setPointerCapture(event.pointerId);
+  pointer.longPressTimer = window.setTimeout(() => {
+    pointer.longPressTimer = 0;
+    if (!pointer.active || pointer.moved) return;
+    pointer.longPressReady = true;
+    beginPlayback();
+  }, LONG_PRESS_DELAY);
 }
 
 function onPointerMove(event) {
@@ -454,10 +506,24 @@ function onPointerMove(event) {
 }
 
 function onPointerUp(event) {
+  clearLongPressTimer();
+  if (pointer.longPressReady) pausePlayback();
   pointer.active = false;
   pointer.moved = false;
+  pointer.longPressReady = false;
   state.isDragging = false;
   if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+}
+
+function onWheel(event) {
+  event.preventDefault();
+  const modeMultiplier = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? window.innerHeight : 1;
+  const delta = clamp(event.deltaY * modeMultiplier, -240, 240);
+  cameraZoom.target = clamp(
+    cameraZoom.target + delta * CAMERA_ZOOM_SENSITIVITY,
+    CAMERA_MIN_DISTANCE,
+    CAMERA_MAX_DISTANCE,
+  );
 }
 
 function toggleSpread() {
@@ -466,6 +532,11 @@ function toggleSpread() {
 }
 
 function onKeyDown(event) {
+  if (event.key === ' ' || event.key === 'Spacebar') {
+    event.preventDefault();
+    if (!event.repeat) beginPlayback();
+    return;
+  }
   if (event.key === 'ArrowRight') {
     event.preventDefault();
     state.yawTarget += THREE.MathUtils.degToRad(10);
@@ -497,6 +568,22 @@ function onKeyDown(event) {
   }
 }
 
+function onKeyUp(event) {
+  if (event.key === ' ' || event.key === 'Spacebar') {
+    event.preventDefault();
+    pausePlayback();
+  }
+}
+
+function onWindowBlur() {
+  clearLongPressTimer();
+  pausePlayback();
+  pointer.active = false;
+  pointer.moved = false;
+  pointer.longPressReady = false;
+  state.isDragging = false;
+}
+
 function resize() {
   const width = canvas.clientWidth || window.innerWidth;
   const height = canvas.clientHeight || window.innerHeight;
@@ -509,12 +596,16 @@ async function boot() {
   resize();
   createAtmosphere();
   window.addEventListener('resize', resize, { passive: true });
-  window.addEventListener('scroll', updateScrollProgress, { passive: true });
   canvas.addEventListener('pointerdown', onPointerDown);
   canvas.addEventListener('pointermove', onPointerMove);
   canvas.addEventListener('pointerup', onPointerUp);
   canvas.addEventListener('pointercancel', onPointerUp);
+  canvas.addEventListener('wheel', onWheel, { passive: false });
   canvas.addEventListener('keydown', onKeyDown);
+  canvas.addEventListener('keyup', onKeyUp);
+  canvas.addEventListener('blur', pausePlayback);
+  window.addEventListener('blur', onWindowBlur);
+  canvas.addEventListener('contextmenu', (event) => event.preventDefault());
   expandButton.addEventListener('click', toggleSpread);
 
   try {
@@ -534,7 +625,8 @@ async function boot() {
 function render() {
   const delta = Math.min(clock.getDelta(), 0.05);
   animationTime += delta;
-  updateScrollProgress();
+  updatePlayback(delta);
+  updateCamera(delta);
   updateRotation(delta);
   updateSlices(delta, animationTime);
   updateAtmosphere(animationTime);

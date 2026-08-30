@@ -50,7 +50,9 @@ p {
 
 .slice-section {
   position: relative;
-  height: 520vh;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 32rem;
   background: #eedbdc;
 }
 
@@ -131,6 +133,7 @@ p {
   letter-spacing: 0.12em;
   text-align: right;
   text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
 }
 
 #stage-status {
@@ -147,7 +150,8 @@ p {
   height: 100%;
   outline: none;
   cursor: grab;
-  touch-action: pan-y;
+  touch-action: none;
+  user-select: none;
 }
 
 #scene:active {
@@ -253,7 +257,7 @@ p {
 }
 
 .expand-button:active {
-  transform: scale(0.97);
+  transform: scale(0.96);
 }
 
 @keyframes haze-drift {
