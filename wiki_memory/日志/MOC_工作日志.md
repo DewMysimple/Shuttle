@@ -18,6 +18,7 @@ supersedes: null
 | 2026-08-30 | feature | 建立独立的 Three.js/Vite 3D 时间切片网页，并接入初始杜鹃花模型方案。 | archived | initial-time-slice-experience | [[日志/2026-08-30-项目初始化与杜鹃花时间切片.md|2026-08-30｜项目初始化与杜鹃花时间切片]] |
 | 2026-08-30 | feature | 让画布角度可以自由旋转 360° 以上，并增加明显、丰富的主界面动效。 | archived | free-orbit-and-rich-motion | [[日志/2026-08-30-自由旋转与丰富动效.md|2026-08-30｜自由旋转与丰富动效]] |
 | 2026-08-30 | maintenance | 将网页工程初始化为独立 Git 仓库并推送到指定远程仓库。 | archived | repository-initialization | [[日志/2026-08-30-工程初始化与远程管理.md|2026-08-30｜工程初始化与远程管理]] |
+| 2026-08-30 | bug | 修复双击 `runStart.cmd` 无法启动工程的问题。 | archived | windows-start-script | [[日志/2026-08-30-启动脚本修复.md|2026-08-30｜Windows 启动脚本修复]] |
 | 2026-08-30 | feature | 按视觉稿只保留一个主界面，并将主体从初版杜鹃花切换为用户指定的兰花。 | archived | single-interface-and-orchid-replacement | [[日志/2026-08-30-单一主界面与兰花替换.md|2026-08-30｜单一主界面与兰花替换]] |
 | 2026-08-30 | ui | 确保网页使用准确的兰花源文件，并删除用户明确不需要的下方棕色圆台。 | archived | orchid-asset-and-stage-cleanup | [[日志/2026-08-30-兰花替换与展示台移除.md|2026-08-30｜兰花替换与展示台移除]] |
 | 2026-08-30 | maintenance | 完全按照 `工程记忆构建/wiki_memory` 的理论目录、Schema、frontmatter、日志和 lint 方式构建本项目记忆。 | archived | structured-wiki-memory | [[日志/2026-08-30-wiki_memory结构化.md|2026-08-30｜wiki_memory 结构化]] |

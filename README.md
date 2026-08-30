@@ -27,6 +27,8 @@ npm run dev
 
 然后打开 Vite 输出的本地地址。
 
+也可以直接双击 `runStart.cmd` 启动；脚本会自动切换到工程目录，检查 Node.js/npm，并在依赖缺失时执行 `npm install`。
+
 ## 交互
 
 - 页面滚动控制 76 个兰花时间状态。
