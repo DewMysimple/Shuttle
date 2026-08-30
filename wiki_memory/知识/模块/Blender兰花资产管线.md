@@ -3,12 +3,13 @@ type: knowledge
 status: active
 kind: module
 importance: high
-updated: 2026-08-30
+updated: 2026-08-31
 topic: blender-orchid-asset-pipeline
 source_logs:
   - "[[日志/2026-08-30-兰花替换与展示台移除]]"
   - "[[日志/2026-08-30-移除实时模型仅保留时间切片]]"
   - "[[日志/2026-08-30-完整帧提取与切片间距调整]]"
+  - "[[日志/2026-08-31-全动画安全构图与主体居中]]"
 supersedes: null
 ---
 
@@ -28,6 +29,7 @@ supersedes: null
 - `scripts/export_blender_assets.py` 配置 MeshSequenceCache，逐帧读取网格并写入 `Frame_001` 至 `Frame_166` shape keys。
 - 导出动作名为 `Orchid_Time_Slices`，GLB 不带 Blender 场景展示台；当前网页不加载该 GLB。
 - 同一批完整帧渲染为 768×768 RGBA PNG，文件名为 `frame-001.png` 至 `frame-166.png`；manifest 的数量必须与文件数量一致。
+- 渲染前 `fit_camera_to_animation()` 会遍历每个评估姿态的包围盒，保持原相机方向，自动调整焦距与 `shift_x/shift_y`，将联合投影范围收进约 8%–92% 的画面安全区；该调整只存在于导出进程，不保存回源 `.blend`。
 - 外部 Alembic 缓存约 106 MB，不放入 Git；网页运行只使用生成后的资产。
 
 ## 常见问题或陷阱
@@ -35,6 +37,7 @@ supersedes: null
 - 只打开 `.blend` 但没有 sidecar Alembic 时会出现缓存缺失提示；重新导出必须显式传入 ABC 路径。
 - Blender 5 的 Action API 不使用旧版 `action.fcurves` 写法，脚本需要使用当前数据块 API 创建 morph 曲线。
 - 重新导出后必须检查 shape key 数量、动画名称、manifest 和 PNG 数量。
+- 重新导出后还必须检查 Alpha 包围盒是否触碰画布边缘，至少抽查首帧、中段和尾帧；如果模型或动画变化，不能沿用旧相机参数。
 
 ## 来源
 

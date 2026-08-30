@@ -3,6 +3,8 @@ import sys
 from pathlib import Path
 
 import bpy
+from bpy_extras.object_utils import world_to_camera_view
+from mathutils import Vector
 
 
 def parse_arguments():
@@ -156,6 +158,90 @@ def export_glb(output_path, model):
     )
 
 
+def projected_bounds(scene, camera, world_points):
+    projections = [world_to_camera_view(scene, camera, point) for point in world_points]
+    return (
+        min(point.x for point in projections),
+        min(point.y for point in projections),
+        max(point.x for point in projections),
+        max(point.y for point in projections),
+    )
+
+
+def fit_camera_to_animation(scene, model, frames, margin=0.08):
+    """Fit one stable camera view around every evaluated animation pose.
+
+    The source camera is composed for the early, closed pose. The flower grows
+    beyond that framing later in the cache, so rendering without a global fit
+    cuts the last poses at the edge of each PNG. We keep the original camera
+    orientation, widen the lens just enough for the union of all poses, and
+    calibrate camera shift so that the union is optically centered.
+    """
+    camera = scene.camera
+    if camera is None:
+        return None
+
+    original_camera = {
+        "lens": camera.data.lens,
+        "shift_x": camera.data.shift_x,
+        "shift_y": camera.data.shift_y,
+    }
+    original_frame = scene.frame_current
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    world_points = []
+
+    for frame in frames:
+        scene.frame_set(frame)
+        bpy.context.view_layer.update()
+        evaluated = model.evaluated_get(depsgraph)
+        world_points.extend(
+            evaluated.matrix_world @ Vector(corner)
+            for corner in evaluated.bound_box
+        )
+
+    if not world_points:
+        scene.frame_set(original_frame)
+        return original_camera
+
+    base_bounds = projected_bounds(scene, camera, world_points)
+    base_width = base_bounds[2] - base_bounds[0]
+    base_height = base_bounds[3] - base_bounds[1]
+    available_size = max(1 - margin * 2, 0.5)
+    fit_scale = max(base_width / available_size, base_height / available_size, 1)
+
+    camera.data.lens = original_camera["lens"] / fit_scale
+    camera.data.shift_x = 0
+    camera.data.shift_y = 0
+
+    def current_center():
+        bounds = projected_bounds(scene, camera, world_points)
+        return ((bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2)
+
+    def center_axis(axis):
+        center = current_center()
+        current_value = getattr(camera.data, axis)
+        probe_value = current_value + 0.01
+        setattr(camera.data, axis, probe_value)
+        probe_center = current_center()
+        slope = (probe_center[0 if axis == "shift_x" else 1] - center[0 if axis == "shift_x" else 1]) / 0.01
+        setattr(camera.data, axis, current_value)
+        if abs(slope) > 1e-6:
+            target_value = current_value + (0.5 - center[0 if axis == "shift_x" else 1]) / slope
+            setattr(camera.data, axis, target_value)
+
+    center_axis("shift_x")
+    center_axis("shift_y")
+    final_bounds = projected_bounds(scene, camera, world_points)
+    print(
+        "Camera fit: "
+        f"lens={camera.data.lens:.3f}, "
+        f"shift=({camera.data.shift_x:.4f}, {camera.data.shift_y:.4f}), "
+        f"projected_bounds={tuple(round(value, 4) for value in final_bounds)}"
+    )
+    scene.frame_set(original_frame)
+    return original_camera
+
+
 def render_slices(output_directory, scene, model, frames):
     slice_directory = output_directory / "slices"
     slice_directory.mkdir(parents=True, exist_ok=True)
@@ -169,8 +255,17 @@ def render_slices(output_directory, scene, model, frames):
         "color_mode": scene.render.image_settings.color_mode,
         "filepath": scene.render.filepath,
         "frame_current": scene.frame_current,
+        "camera": scene.camera,
+        "camera_data": None,
         "hide_render": {obj.name: obj.hide_render for obj in bpy.data.objects if obj.type == "MESH"},
     }
+
+    if scene.camera:
+        original["camera_data"] = {
+            "lens": scene.camera.data.lens,
+            "shift_x": scene.camera.data.shift_x,
+            "shift_y": scene.camera.data.shift_y,
+        }
 
     renderable_meshes = [obj for obj in bpy.data.objects if obj.type == "MESH"]
     for obj in renderable_meshes:
@@ -182,6 +277,8 @@ def render_slices(output_directory, scene, model, frames):
     scene.render.resolution_percentage = 100
     scene.render.image_settings.file_format = "PNG"
     scene.render.image_settings.color_mode = "RGBA"
+
+    fit_camera_to_animation(scene, model, frames)
 
     frame_map = []
     for index, frame in enumerate(frames):
@@ -199,6 +296,11 @@ def render_slices(output_directory, scene, model, frames):
     scene.render.image_settings.color_mode = original["color_mode"]
     scene.render.filepath = original["filepath"]
     scene.frame_set(original["frame_current"])
+
+    if original["camera"] and original["camera_data"]:
+        original["camera"].data.lens = original["camera_data"]["lens"]
+        original["camera"].data.shift_x = original["camera_data"]["shift_x"]
+        original["camera"].data.shift_y = original["camera_data"]["shift_y"]
 
     for obj in renderable_meshes:
         obj.hide_render = original["hide_render"].get(obj.name, False)
