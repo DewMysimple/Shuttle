@@ -7,7 +7,7 @@ const CARD_WIDTH = 2.15;
 const CARD_HEIGHT = 1.72;
 const IMAGE_WIDTH = 1.92;
 const IMAGE_HEIGHT = 1.54;
-const LINE_STEP = 0.3;
+const SLICE_DEPTH_STEP = 0.42;
 const DRAG_DEADZONE = 8;
 const LONG_PRESS_DELAY = 260;
 const PLAYBACK_FPS = 30;
@@ -432,7 +432,10 @@ function updateSlices(delta, elapsed) {
     slice.visible = !isBeforeCurrent;
     if (isBeforeCurrent) return;
 
-    slice.position.set(offset * LINE_STEP * state.spread, 0, 0);
+    // Each slice is a separate, front-facing parallel plane. The current
+    // frame stays at the focus origin while later frames recede along the
+    // plane normal, so side views show real gaps instead of a coplanar line.
+    slice.position.set(0, 0, -offset * SLICE_DEPTH_STEP * state.spread);
     slice.rotation.set(0, 0, 0);
 
     slice.userData.card.material.opacity = reveal * (0.028 + sideView * 0.025 + focus * 0.035);
