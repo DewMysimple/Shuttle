@@ -12,14 +12,14 @@ const LATERAL_STEP = 0.16;
 const DRAG_DEADZONE = 8;
 const LONG_PRESS_DELAY = 260;
 const PLAYBACK_FPS = 30;
-const YAW_PER_VIEWPORT = Math.PI * 1.4;
-const PITCH_PER_VIEWPORT = THREE.MathUtils.degToRad(56);
-const PITCH_LIMIT = THREE.MathUtils.degToRad(28);
-const ROTATION_DRAG_SMOOTHING = 9;
+const YAW_PER_VIEWPORT = Math.PI * 1.6;
+const PITCH_PER_VIEWPORT = THREE.MathUtils.degToRad(84);
+const PITCH_LIMIT = THREE.MathUtils.degToRad(36);
+const ROTATION_DRAG_SMOOTHING = 11;
 const ROTATION_RELEASE_SMOOTHING = 7;
 const CAMERA_ZOOM_SMOOTHING = 8;
 const CAMERA_ZOOM_SENSITIVITY = 0.008;
-const CAMERA_MIN_DISTANCE = 5.8;
+const CAMERA_MIN_DISTANCE = 5.2;
 const CAMERA_MAX_DISTANCE = 15.5;
 
 const canvas = document.querySelector('#scene');
@@ -41,6 +41,7 @@ const state = {
   pitchTarget: 0.08,
   isDragging: false,
   isPlaying: false,
+  playbackDirection: 1,
 };
 
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -67,6 +68,7 @@ const cameraZoom = {
   current: defaultCameraDistance,
   target: defaultCameraDistance,
 };
+const cameraFocusPoint = new THREE.Vector3(0, 0.5, 0);
 camera.position.set(0, 1.25, defaultCameraDistance);
 camera.lookAt(0, 0.5, 0);
 
@@ -358,18 +360,30 @@ async function loadSlices() {
 function updatePlayback(delta) {
   if (!state.isPlaying || sliceCount < 2) return;
 
-  state.frameFloat += delta * PLAYBACK_FPS;
-  if (state.frameFloat < sliceCount - 1) return;
+  state.frameFloat += delta * PLAYBACK_FPS * state.playbackDirection;
+  const reachedEnd = state.playbackDirection > 0
+    ? state.frameFloat >= sliceCount - 1
+    : state.frameFloat <= 0;
+  if (!reachedEnd) return;
 
-  state.frameFloat = sliceCount - 1;
+  state.frameFloat = state.playbackDirection > 0 ? sliceCount - 1 : 0;
   state.isPlaying = false;
-  setStageStatus('播放结束');
+  setStageStatus(state.playbackDirection > 0 ? '正向播放结束' : '倒放结束');
 }
 
-function updateCamera(delta) {
+function updateCamera(delta, elapsed) {
   cameraZoom.current = damp(cameraZoom.current, cameraZoom.target, CAMERA_ZOOM_SMOOTHING, delta);
   camera.position.z = cameraZoom.current;
-  camera.lookAt(0, 0.5, 0);
+
+  const focusDrift = prefersReducedMotion ? 0 : state.spread;
+  cameraFocusPoint.set(
+    Math.sin(elapsed * 0.56 + state.frameFloat * 0.18) * 0.012 * focusDrift,
+    Math.sin(state.frameFloat * 0.33) * 0.03 * state.spread
+      + Math.sin(elapsed * 0.78 + state.frameFloat * 0.24) * 0.028 * focusDrift,
+    -0.55 + Math.cos(elapsed * 0.47 + state.frameFloat * 0.14) * 0.018 * focusDrift,
+  );
+  sliceRoot.localToWorld(cameraFocusPoint);
+  camera.lookAt(cameraFocusPoint);
 }
 
 function updateRotation(delta) {
@@ -431,8 +445,6 @@ function updateSlices(delta, elapsed) {
 }
 
 function updateInteraction() {
-  if (state.isPlaying && pointer.longPressReady) return;
-
   const totalX = pointer.currentX - pointer.startX;
   const totalY = pointer.currentY - pointer.startY;
 
@@ -464,11 +476,17 @@ function clearLongPressTimer() {
 }
 
 function beginPlayback() {
+  beginPlaybackInDirection(1);
+}
+
+function beginPlaybackInDirection(direction) {
   if (sliceCount < 2) return;
-  if (state.frameFloat >= sliceCount - 1) state.frameFloat = 0;
+  state.playbackDirection = direction < 0 ? -1 : 1;
+  if (state.playbackDirection > 0 && state.frameFloat >= sliceCount - 1) state.frameFloat = 0;
+  if (state.playbackDirection < 0 && state.frameFloat <= 0) state.frameFloat = sliceCount - 1;
   state.isPlaying = true;
-  state.isDragging = false;
-  setStageStatus('播放中');
+  state.isDragging = pointer.active;
+  setStageStatus(state.playbackDirection > 0 ? '正向播放' : '倒放');
 }
 
 function pausePlayback() {
@@ -478,6 +496,7 @@ function pausePlayback() {
 }
 
 function onPointerDown(event) {
+  const canPlayOnHold = event.button === 0 || event.button === 2;
   pointer.active = true;
   pointer.startX = event.clientX;
   pointer.startY = event.clientY;
@@ -489,13 +508,16 @@ function onPointerDown(event) {
   pointer.longPressReady = false;
   clearLongPressTimer();
   state.isDragging = true;
+  if (event.button === 2) event.preventDefault();
   canvas.setPointerCapture(event.pointerId);
-  pointer.longPressTimer = window.setTimeout(() => {
-    pointer.longPressTimer = 0;
-    if (!pointer.active || pointer.moved) return;
-    pointer.longPressReady = true;
-    beginPlayback();
-  }, LONG_PRESS_DELAY);
+  if (canPlayOnHold) {
+    pointer.longPressTimer = window.setTimeout(() => {
+      pointer.longPressTimer = 0;
+      if (!pointer.active || pointer.moved) return;
+      pointer.longPressReady = true;
+      beginPlaybackInDirection(event.button === 2 ? -1 : 1);
+    }, LONG_PRESS_DELAY);
+  }
 }
 
 function onPointerMove(event) {
@@ -626,9 +648,9 @@ function render() {
   const delta = Math.min(clock.getDelta(), 0.05);
   animationTime += delta;
   updatePlayback(delta);
-  updateCamera(delta);
   updateRotation(delta);
   updateSlices(delta, animationTime);
+  updateCamera(delta, animationTime);
   updateAtmosphere(animationTime);
   renderer.render(scene, camera);
   requestAnimationFrame(render);
