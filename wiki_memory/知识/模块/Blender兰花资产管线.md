@@ -7,6 +7,7 @@ updated: 2026-08-30
 topic: blender-orchid-asset-pipeline
 source_logs:
   - "[[日志/2026-08-30-兰花替换与展示台移除]]"
+  - "[[日志/2026-08-30-移除实时模型仅保留时间切片]]"
 supersedes: null
 ---
 
@@ -14,7 +15,7 @@ supersedes: null
 
 ## 一句话结论
 
-源 `.blend` 的 MeshSequenceCache 必须在 Blender 中结合外部 Alembic 缓存烘焙后，才能成为网页使用的 GLB morph animation 和透明 PNG。
+源 `.blend` 的 MeshSequenceCache 必须在 Blender 中结合外部 Alembic 缓存烘焙后，才能生成可选 GLB 检查资产和网页使用的透明 PNG。
 
 ## 适用范围
 
@@ -24,7 +25,7 @@ supersedes: null
 
 - 源动画范围为 1–166 帧，网页均匀采样 76 帧。
 - `scripts/export_blender_assets.py` 配置 MeshSequenceCache，逐帧读取网格并写入 `Frame_001` 至 `Frame_076` shape keys。
-- 导出动作名为 `Orchid_Time_Slices`，GLB 不带 Blender 场景展示台。
+- 导出动作名为 `Orchid_Time_Slices`，GLB 不带 Blender 场景展示台；当前网页不加载该 GLB。
 - 同一批采样帧渲染为 768×768 RGBA PNG，文件名为 `frame-001.png` 至 `frame-076.png`。
 - 外部 Alembic 缓存约 106 MB，不放入 Git；网页运行只使用生成后的资产。
 

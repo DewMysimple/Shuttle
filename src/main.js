@@ -1,10 +1,9 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import './style.css';
 
 const SLICE_COUNT = 76;
-const MODEL_URL = '/assets/flower.glb';
 const FRAME_URL = (index) => `/assets/slices/frame-${String(index + 1).padStart(3, '0')}.png`;
+const INITIAL_SPREAD = 0.72;
 const DRAG_DEADZONE = 8;
 const YAW_PER_VIEWPORT = Math.PI * 1.4;
 const PITCH_PER_VIEWPORT = THREE.MathUtils.degToRad(56);
@@ -24,8 +23,8 @@ const expandButton = document.querySelector('#expand-button');
 const state = {
   scrollProgress: 0,
   frameFloat: 0,
-  spread: 0,
-  spreadTarget: 0,
+  spread: INITIAL_SPREAD,
+  spreadTarget: INITIAL_SPREAD,
   yaw: 0,
   yawTarget: 0,
   pitch: 0.08,
@@ -70,27 +69,15 @@ const atmosphereRings = [];
 const atmosphereHalos = [];
 scene.add(atmosphereRoot);
 
-const ambientLight = new THREE.HemisphereLight(0xfff2dc, 0x51435d, 2.1);
-const keyLight = new THREE.DirectionalLight(0xffe3c5, 3.5);
-keyLight.position.set(4, 6, 5);
-const rimLight = new THREE.DirectionalLight(0xc9b4ff, 2.4);
-rimLight.position.set(-5, 3, -2);
-scene.add(ambientLight, keyLight, rimLight);
-
 const timeline = new THREE.Group();
-const heroRoot = new THREE.Group();
 const sliceRoot = new THREE.Group();
 sliceRoot.scale.setScalar(isSmallViewport ? 0.78 : 1);
 timeline.add(sliceRoot);
 const rotationRig = new THREE.Group();
-rotationRig.add(timeline, heroRoot);
+rotationRig.add(timeline);
 scene.add(rotationRig);
 
 const slices = [];
-let mixer = null;
-let clipDuration = 0;
-let flower = null;
-let flowerBaseY = 0;
 let lastDisplayedFrame = -1;
 let lastStatus = '';
 
@@ -298,34 +285,6 @@ function createSlice(texture, index) {
   slices.push(group);
 }
 
-async function loadModel() {
-  const loader = new GLTFLoader();
-  const gltf = await loader.loadAsync(MODEL_URL);
-  flower = gltf.scene;
-
-  flower.traverse((object) => {
-    if (!object.isMesh) return;
-    object.castShadow = false;
-    object.receiveShadow = false;
-    if (object.material) object.material.side = THREE.DoubleSide;
-  });
-
-  const bounds = new THREE.Box3().setFromObject(flower);
-  const size = bounds.getSize(new THREE.Vector3());
-  const scale = (isSmallViewport ? 2.25 : 3.2) / Math.max(size.y, 0.001);
-  flower.scale.setScalar(scale);
-  flowerBaseY = isSmallViewport ? -0.58 : -0.72;
-  flower.position.y = flowerBaseY;
-  heroRoot.add(flower);
-
-  if (gltf.animations.length > 0) {
-    const clip = gltf.animations.find((item) => item.name.toLowerCase().includes('fly')) ?? gltf.animations[0];
-    mixer = new THREE.AnimationMixer(flower);
-    mixer.clipAction(clip).play();
-    clipDuration = clip.duration;
-  }
-}
-
 async function loadSlices() {
   const loader = new THREE.TextureLoader();
   let loaded = 0;
@@ -333,7 +292,7 @@ async function loadSlices() {
     Array.from({ length: SLICE_COUNT }, async (_, index) => {
       const texture = await loader.loadAsync(FRAME_URL(index));
       loaded += 1;
-      setLoading(0.22 + (loaded / SLICE_COUNT) * 0.68, `生成时间切片 ${String(loaded).padStart(2, '0')} / ${SLICE_COUNT}`);
+      setLoading(0.12 + (loaded / SLICE_COUNT) * 0.82, `载入时间切片 ${String(loaded).padStart(2, '0')} / ${SLICE_COUNT}`);
       return texture;
     }),
   );
@@ -349,25 +308,17 @@ function updateScrollProgress() {
   state.frameFloat = progress * (SLICE_COUNT - 1);
 }
 
-function updateHero(delta, elapsed) {
-  if (mixer && clipDuration > 0) mixer.setTime(state.scrollProgress * clipDuration);
-
+function updateRotation(delta) {
   state.yaw = damp(state.yaw, state.yawTarget, ROTATION_SMOOTHING, delta);
   state.pitch = damp(state.pitch, state.pitchTarget, ROTATION_SMOOTHING, delta);
 
-  if (flower) {
-    const breathing = prefersReducedMotion ? 0 : Math.sin(elapsed * 1.15) * 0.022;
-    flower.position.y = flowerBaseY + breathing;
-  }
-
   rotationRig.rotation.y = state.yaw;
   rotationRig.rotation.x = state.pitch;
-  const breathingScale = prefersReducedMotion ? 1 : 1 + Math.sin(elapsed * 1.15 + 0.8) * 0.006;
-  heroRoot.scale.setScalar(breathingScale);
 }
 
 function updateSlices(delta, elapsed) {
   state.spread = damp(state.spread, state.spreadTarget, 7, delta);
+  sliceRoot.position.y = prefersReducedMotion ? 0 : Math.sin(elapsed * 1.15) * 0.022;
   const reveal = smoothstep(0.025, 0.2, state.spread);
   const center = (SLICE_COUNT - 1) / 2;
 
@@ -512,10 +463,8 @@ async function boot() {
   expandButton.addEventListener('click', toggleSpread);
 
   try {
-    setStageStatus('载入模型');
-    setLoading(0.08, '载入兰花形态动画');
-    await loadModel();
-    setLoading(0.2, '模型就绪，准备 76 个时间切片');
+    setStageStatus('载入切片');
+    setLoading(0.08, '准备 76 张透明时间切片');
     await loadSlices();
     setStageStatus('交互就绪');
     setLoading(1, '完成');
@@ -523,7 +472,7 @@ async function boot() {
   } catch (error) {
     console.error(error);
     setStageStatus('资源缺失');
-    loadingDetail.textContent = '请先运行 Blender 导出脚本，再刷新页面';
+    loadingDetail.textContent = '请检查 public/assets/slices 中的 76 张 PNG，再刷新页面';
   }
 }
 
@@ -531,7 +480,7 @@ function render() {
   const delta = Math.min(clock.getDelta(), 0.05);
   animationTime += delta;
   updateScrollProgress();
-  updateHero(delta, animationTime);
+  updateRotation(delta);
   updateSlices(delta, animationTime);
   updateAtmosphere(animationTime);
   renderer.render(scene, camera);
