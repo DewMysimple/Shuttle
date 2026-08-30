@@ -89,7 +89,7 @@ p {
   z-index: 4;
   pointer-events: none;
   content: "";
-  opacity: 0.2;
+  opacity: 0.12;
   background: linear-gradient(120deg, rgba(255, 255, 255, 0.5), transparent 35%, rgba(98, 55, 120, 0.12));
   mix-blend-mode: screen;
   animation: veil-breathe 11s ease-in-out infinite alternate;

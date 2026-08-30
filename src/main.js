@@ -4,6 +4,12 @@ import './style.css';
 const SLICE_COUNT = 76;
 const FRAME_URL = (index) => `/assets/slices/frame-${String(index + 1).padStart(3, '0')}.png`;
 const INITIAL_SPREAD = 0.72;
+const CARD_WIDTH = 2.15;
+const CARD_HEIGHT = 1.72;
+const IMAGE_WIDTH = 1.92;
+const IMAGE_HEIGHT = 1.54;
+const DEPTH_STEP = 0.18;
+const LATERAL_STEP = 0.1;
 const DRAG_DEADZONE = 8;
 const YAW_PER_VIEWPORT = Math.PI * 1.4;
 const PITCH_PER_VIEWPORT = THREE.MathUtils.degToRad(56);
@@ -252,8 +258,9 @@ function createSlice(texture, index) {
     opacity: 0,
     depthWrite: false,
     side: THREE.DoubleSide,
+    toneMapped: false,
   });
-  const card = new THREE.Mesh(roundedRectGeometry(2.85, 2.3, 0.12), cardMaterial);
+  const card = new THREE.Mesh(roundedRectGeometry(CARD_WIDTH, CARD_HEIGHT, 0.1), cardMaterial);
   card.position.z = -0.06;
   card.renderOrder = 10;
 
@@ -262,6 +269,7 @@ function createSlice(texture, index) {
     transparent: true,
     opacity: 0,
     depthWrite: false,
+    toneMapped: false,
   });
   const outline = new THREE.LineSegments(new THREE.EdgesGeometry(card.geometry), outlineMaterial);
   outline.position.z = -0.03;
@@ -273,8 +281,28 @@ function createSlice(texture, index) {
     opacity: 0,
     depthWrite: false,
     side: THREE.DoubleSide,
+    toneMapped: false,
   });
-  const image = new THREE.Mesh(new THREE.PlaneGeometry(2.56, 2.06), imageMaterial);
+  imageMaterial.onBeforeCompile = (shader) => {
+    shader.uniforms.sliceSaturation = { value: 1.16 };
+    shader.uniforms.sliceContrast = { value: 1.08 };
+    imageMaterial.userData.shader = shader;
+    shader.fragmentShader = shader.fragmentShader.replace(
+      'void main() {',
+      `uniform float sliceSaturation;
+uniform float sliceContrast;
+
+void main() {`,
+    );
+    shader.fragmentShader = shader.fragmentShader.replace(
+      'vec3 outgoingLight = reflectedLight.indirectDiffuse;',
+      `vec3 outgoingLight = reflectedLight.indirectDiffuse;
+  float sliceLuminance = dot(outgoingLight, vec3(0.299, 0.587, 0.114));
+  outgoingLight = mix(vec3(sliceLuminance), outgoingLight, sliceSaturation);
+  outgoingLight = (outgoingLight - 0.5) * sliceContrast + 0.5;`,
+    );
+  };
+  const image = new THREE.Mesh(new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT), imageMaterial);
   image.position.z = 0.02;
   image.renderOrder = 11;
 
@@ -320,27 +348,39 @@ function updateSlices(delta, elapsed) {
   state.spread = damp(state.spread, state.spreadTarget, 7, delta);
   sliceRoot.position.y = prefersReducedMotion ? 0 : Math.sin(elapsed * 1.15) * 0.022;
   const reveal = smoothstep(0.025, 0.2, state.spread);
-  const center = (SLICE_COUNT - 1) / 2;
+  const sideView = smoothstep(0.2, 0.86, Math.abs(Math.sin(state.yaw)));
 
   slices.forEach((slice, index) => {
-    const offset = index - center;
-    const distance = Math.abs(index - state.frameFloat);
+    const offset = index - state.frameFloat;
+    const distance = Math.abs(offset);
     const focus = Math.max(0, 1 - distance / 5);
-    const timeOpacity = 0.045 + Math.max(0, 0.13 - distance * 0.0015);
-    const imageOpacity = reveal * (timeOpacity + focus * 0.12);
+    const tailOpacity = 0.028 + sideView * 0.045;
+    const activeOpacity = distance < 0.55 ? 0.92 : 0;
+    const nearOpacity = distance < 4 ? 0.52 - distance * 0.08 : 0;
+    const middleOpacity = distance >= 4 ? 0.16 * Math.exp(-(distance - 4) / 8) : 0;
+    const imageOpacity = reveal * clamp(
+      Math.max(activeOpacity, nearOpacity, middleOpacity + tailOpacity, tailOpacity),
+      0,
+      0.94,
+    );
 
     const drift = prefersReducedMotion ? 0 : state.spread;
-    slice.position.x = offset * 0.055 * state.spread + Math.sin(elapsed * 0.56 + index * 0.18) * 0.012 * drift;
+    slice.position.x = offset * LATERAL_STEP * state.spread + Math.sin(elapsed * 0.56 + index * 0.18) * 0.012 * drift;
     slice.position.y = Math.sin(index * 0.33) * 0.03 * state.spread + Math.sin(elapsed * 0.78 + index * 0.24) * 0.028 * drift;
-    slice.position.z = -offset * 0.12 * state.spread - 0.55 + Math.cos(elapsed * 0.47 + index * 0.14) * 0.018 * drift;
+    slice.position.z = -offset * DEPTH_STEP * state.spread - 0.55 + Math.cos(elapsed * 0.47 + index * 0.14) * 0.018 * drift;
     slice.rotation.x = Math.sin(elapsed * 0.38 + index * 0.16) * 0.008 * drift;
     slice.rotation.y = offset * 0.012 * state.spread + Math.sin(elapsed * 0.46 + index * 0.11) * 0.012 * drift;
     slice.rotation.z = Math.sin(index * 0.17) * 0.012 * state.spread + Math.cos(elapsed * 0.52 + index * 0.2) * 0.008 * drift;
 
-    slice.userData.card.material.opacity = 0.008 + reveal * (0.016 + focus * 0.014);
-    slice.userData.outline.material.opacity = reveal * (0.13 + focus * 0.14);
+    slice.userData.card.material.opacity = reveal * (0.028 + sideView * 0.025 + focus * 0.035);
+    slice.userData.outline.material.opacity = reveal * (0.18 + sideView * 0.05 + focus * 0.22);
     slice.userData.image.material.opacity = imageOpacity;
-    slice.scale.setScalar(1 + focus * 0.035 * reveal);
+    const shader = slice.userData.image.material.userData.shader;
+    if (shader) {
+      shader.uniforms.sliceSaturation.value = 1.12 + focus * 0.28 + sideView * 0.06;
+      shader.uniforms.sliceContrast.value = 1.05 + focus * 0.1;
+    }
+    slice.scale.setScalar(0.88 + focus * 0.12 * reveal);
   });
 
   const frame = Math.round(state.frameFloat) + 1;
