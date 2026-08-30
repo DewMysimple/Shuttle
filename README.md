@@ -14,11 +14,11 @@
 & 'F:\Blender\blender.exe' --background --factory-startup 'C:\Users\Administrator\Desktop\Free\兰花_形态1.blend' --python '.\scripts\export_blender_assets.py' -- "$PWD\public\assets" 'C:\Users\Administrator\Desktop\Verminoble\blender_scenebench\blender_modelbench\兰花\形态1\alembic\alembic\OrchidMeshGrp.abc'
 ```
 
-兰花文件中的动画是 MeshSequenceCache，需要额外的 Alembic 缓存。脚本会按 76 个采样状态生成 RGBA PNG 时间切片；同时保留可选的 `flower.glb` 导出结果供后续资产检查，但网页主界面不会加载或显示实时 3D 模型。PNG 用于保留 Blender 透明渲染的干净边缘。
+兰花文件中的动画是 MeshSequenceCache，需要额外的 Alembic 缓存。脚本会按源场景的完整整数帧范围（当前为 1–166，共 166 帧）逐帧生成 RGBA PNG 时间切片；同时保留可选的 `flower.glb` 导出结果供后续资产检查，但网页主界面不会加载或显示实时 3D 模型。PNG 用于保留 Blender 透明渲染的干净边缘。
 
-网页运行时只加载 `slice-manifest.json` 和 76 张 PNG。进入页面后时间切片默认以中等展开状态显示，不会在中央额外立起一个实时模型。
+网页运行时先读取 `slice-manifest.json`，再按清单中的数量加载 PNG；因此切片数量不再写死为 76。进入页面后时间切片默认以中等展开状态显示，不会在中央额外立起一个实时模型。
 
-如果 Alembic 缓存位于其他位置，将命令最后一个路径替换为实际的 `OrchidMeshGrp.abc` 路径。该 106 MB 原始缓存不进入网页仓库；仓库中保留已生成的运行资产。
+如果 Alembic 缓存位于其他位置，将命令最后一个路径替换为实际的 `OrchidMeshGrp.abc` 路径。该约 106 MB 原始缓存不进入网页仓库；仓库中保留已生成的 166 帧运行资产。
 
 ## 启动
 
@@ -33,9 +33,9 @@ npm run dev
 
 ## 交互
 
-- 页面滚动控制 76 个兰花时间状态。
-- 页面只显示 76 张透明时间切片，不加载中心实时 GLB 模型。
-- 滚动时当前帧锚定在中央焦点，前后切片沿 X+Z 轴穿过镜头，正面形成时间隧道，侧面保留独立间距。
+- 页面滚动控制 manifest 中的全部兰花时间状态；当前源动画对应 166 个整数帧。
+- 页面只显示 manifest 中的透明时间切片，不加载中心实时 GLB 模型。
+- 滚动时当前帧锚定在中央焦点，前后切片沿 X+Z 轴穿过镜头，正面形成时间隧道，侧面保留独立间距；相邻切片步进已提高到 X 0.16、Z 0.30。
 - 画布拖拽只控制视角：横向拖拽连续累积方位角，可绕兰花完整旋转 360° 及更多圈；向下拖动是俯视，向上拖动是仰视，纵向范围限制在 ±28°。
 - 旋转采用可打断的柔和阻尼跟随，松手后只做短暂、无惯性的角度收敛，不会继续甩动。
 - 约 8px 只作为起拖死区；超过死区后，水平位移独立控制 yaw、垂直位移独立控制 pitch，斜向拖动会同时改变两个角度。

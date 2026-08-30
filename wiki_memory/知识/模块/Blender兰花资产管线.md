@@ -8,6 +8,7 @@ topic: blender-orchid-asset-pipeline
 source_logs:
   - "[[日志/2026-08-30-兰花替换与展示台移除]]"
   - "[[日志/2026-08-30-移除实时模型仅保留时间切片]]"
+  - "[[日志/2026-08-30-完整帧提取与切片间距调整]]"
 supersedes: null
 ---
 
@@ -23,10 +24,10 @@ supersedes: null
 
 ## 详细内容
 
-- 源动画范围为 1–166 帧，网页均匀采样 76 帧。
-- `scripts/export_blender_assets.py` 配置 MeshSequenceCache，逐帧读取网格并写入 `Frame_001` 至 `Frame_076` shape keys。
+- 源动画范围为 1–166 帧，网页现在逐帧使用全部 166 个整数帧。
+- `scripts/export_blender_assets.py` 配置 MeshSequenceCache，逐帧读取网格并写入 `Frame_001` 至 `Frame_166` shape keys。
 - 导出动作名为 `Orchid_Time_Slices`，GLB 不带 Blender 场景展示台；当前网页不加载该 GLB。
-- 同一批采样帧渲染为 768×768 RGBA PNG，文件名为 `frame-001.png` 至 `frame-076.png`。
+- 同一批完整帧渲染为 768×768 RGBA PNG，文件名为 `frame-001.png` 至 `frame-166.png`；manifest 的数量必须与文件数量一致。
 - 外部 Alembic 缓存约 106 MB，不放入 Git；网页运行只使用生成后的资产。
 
 ## 常见问题或陷阱

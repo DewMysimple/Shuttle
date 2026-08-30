@@ -1,15 +1,14 @@
 import * as THREE from 'three';
 import './style.css';
 
-const SLICE_COUNT = 76;
 const FRAME_URL = (index) => `/assets/slices/frame-${String(index + 1).padStart(3, '0')}.png`;
 const INITIAL_SPREAD = 0.72;
 const CARD_WIDTH = 2.15;
 const CARD_HEIGHT = 1.72;
 const IMAGE_WIDTH = 1.92;
 const IMAGE_HEIGHT = 1.54;
-const DEPTH_STEP = 0.18;
-const LATERAL_STEP = 0.1;
+const DEPTH_STEP = 0.3;
+const LATERAL_STEP = 0.16;
 const DRAG_DEADZONE = 8;
 const YAW_PER_VIEWPORT = Math.PI * 1.4;
 const PITCH_PER_VIEWPORT = THREE.MathUtils.degToRad(56);
@@ -85,6 +84,7 @@ rotationRig.add(timeline);
 scene.add(rotationRig);
 
 const slices = [];
+let sliceCount = 0;
 let lastDisplayedFrame = -1;
 let lastStatus = '';
 
@@ -315,13 +315,27 @@ void main() {`,
 }
 
 async function loadSlices() {
+  const manifestResponse = await fetch('/assets/slice-manifest.json');
+  if (!manifestResponse.ok) {
+    throw new Error(`Unable to load slice manifest: ${manifestResponse.status}`);
+  }
+
+  const manifest = await manifestResponse.json();
+  const manifestFrames = Array.isArray(manifest.frames) ? manifest.frames : [];
+  if (!Number.isInteger(manifest.count) || manifest.count < 1 || manifestFrames.length !== manifest.count) {
+    throw new Error('Slice manifest count does not match its frame list');
+  }
+
+  sliceCount = manifest.count;
+  frameCounter.textContent = `FRAME 01 / ${sliceCount}`;
+
   const loader = new THREE.TextureLoader();
   let loaded = 0;
   const textures = await Promise.all(
-    Array.from({ length: SLICE_COUNT }, async (_, index) => {
+    Array.from({ length: sliceCount }, async (_, index) => {
       const texture = await loader.loadAsync(FRAME_URL(index));
       loaded += 1;
-      setLoading(0.12 + (loaded / SLICE_COUNT) * 0.82, `载入时间切片 ${String(loaded).padStart(2, '0')} / ${SLICE_COUNT}`);
+      setLoading(0.12 + (loaded / sliceCount) * 0.82, `载入时间切片 ${loaded} / ${sliceCount}`);
       return texture;
     }),
   );
@@ -334,7 +348,7 @@ function updateScrollProgress() {
   const scrollLength = Math.max(section.offsetHeight - window.innerHeight, 1);
   const progress = clamp(-rect.top / scrollLength, 0, 1);
   state.scrollProgress = progress;
-  state.frameFloat = progress * (SLICE_COUNT - 1);
+  state.frameFloat = progress * Math.max(sliceCount - 1, 0);
 }
 
 function updateRotation(delta) {
@@ -388,7 +402,7 @@ function updateSlices(delta, elapsed) {
   const frame = Math.round(state.frameFloat) + 1;
   if (frame !== lastDisplayedFrame) {
     lastDisplayedFrame = frame;
-    frameCounter.textContent = `FRAME ${String(frame).padStart(2, '0')} / ${SLICE_COUNT}`;
+    frameCounter.textContent = `FRAME ${String(frame).padStart(3, '0')} / ${sliceCount}`;
   }
 
   expandButton.setAttribute('aria-pressed', String(state.spreadTarget > 0.5));
@@ -505,7 +519,7 @@ async function boot() {
 
   try {
     setStageStatus('载入切片');
-    setLoading(0.08, '准备 76 张透明时间切片');
+    setLoading(0.08, '读取完整动画帧清单');
     await loadSlices();
     setStageStatus('交互就绪');
     setLoading(1, '完成');
@@ -513,7 +527,7 @@ async function boot() {
   } catch (error) {
     console.error(error);
     setStageStatus('资源缺失');
-    loadingDetail.textContent = '请检查 public/assets/slices 中的 76 张 PNG，再刷新页面';
+    loadingDetail.textContent = '请检查 public/assets/slices 与 slice-manifest.json，再刷新页面';
   }
 }
 

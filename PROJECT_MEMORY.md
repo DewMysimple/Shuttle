@@ -1,4 +1,4 @@
-# 工程记忆：杜鹃花 3D 时间切片
+# 工程记忆：兰花 3D 时间切片
 
 > 更新时间：2026-08-30
 >
@@ -28,6 +28,8 @@
 - 同次修改建立中心帧、邻近帧、中距离帧和远端帧的透明度层级，并用视角相关的尾部增强和 WebGL 饱和度/对比度分级突出杜鹃花；CSS 白色 screen 雾层降至 0.12。
 - 交互偏好：以丰富、明显的空间动效和旋转反馈为主，不把 Apple Design 的弱化动效取向作为本项目约束；仅保留系统 `prefers-reduced-motion` 作为无障碍兜底。
 - 工程约定：每次代码或视觉修改都必须同步更新本文，完成独立 Git 提交并推送到 `origin/main`。
+- 2026-08-30：根据“包含全部帧提取”的要求，将导出目标从 76 个均匀采样状态改为源动画的全部整数帧；当前兰花场景范围为 1–166，共生成 166 张透明 PNG，网页切片数量改由 `slice-manifest.json` 动态决定。
+- 同次修改将时间隧道相邻切片的空间步进提高为 X `0.16`、Z `0.30`，让侧面切片轮廓和正面隧道层次保持更清楚的距离。
 
 ## 1. 项目目标
 
@@ -35,9 +37,9 @@
 
 核心体验：
 
-- 页面滚动逐帧穿过兰花形态动画的 76 张透明渲染切片。
-- 动画被均匀采样为 76 个时间状态，并由 PNG 切片直接呈现。
-- “展开切片”按钮让 76 张透明时间切片沿空间轴展开或收拢。
+- 页面滚动逐帧穿过兰花形态动画的 166 张透明渲染切片。
+- 动画按源场景 1–166 的每个整数帧提取，并由 PNG 切片直接呈现。
+- “展开切片”按钮让 166 张透明时间切片沿空间轴展开或收拢。
 - 展开后能看到连续的 3D 时间轨迹、遮挡关系和透视变化。
 - 当前帧固定在视觉中心，滚动会让前后时间切片相对镜头穿行，形成“时间穿梭”效果。
 - 粉色、紫色、黄色的粉彩雾光和透明卡片构成整体视觉。
@@ -83,7 +85,7 @@ Blender 检查结果：
 
 当前网页采用切片优先方案：
 
-1. `frame-001.png` 至 `frame-076.png`：Blender 透明渲染得到的 76 张时间切片，用于形成可展开的空间轨迹，也是网页的唯一主体视觉资产。
+1. `frame-001.png` 至 `frame-166.png`：Blender 按源动画每个整数帧透明渲染得到的 166 张时间切片，用于形成可展开的空间轨迹，也是网页的唯一主体视觉资产。
 2. Three.js：负责透明纹理、切片卡片、相机、统一转台和交互；不加载实时 GLB，不创建 `AnimationMixer`。
 3. `flower.glb`：导出脚本生成的可选检查资产，保留在仓库中但不被主界面请求。
 4. CSS：负责页面渐变、雾光、信息层、布局和移动端适配。
@@ -91,7 +93,7 @@ Blender 检查结果：
 当前兰花时间采样规则（源动画 1–166 帧）：
 
 ```js
-sampleFrame(i) = round(1 + i * (166 - 1) / 75)
+sampleFrame(i) = i + 1, i ∈ [0, 165]
 ```
 
 页面状态由以下数据驱动：
@@ -99,7 +101,7 @@ sampleFrame(i) = round(1 + i * (166 - 1) / 75)
 ```ts
 type TimeSliceState = {
   scrollProgress: number; // 0–1
-  frameFloat: number;     // 0–75
+  frameFloat: number;     // 0–165
   spread: number;         // 0–1
   yaw: number;
   pitch: number;
@@ -108,8 +110,8 @@ type TimeSliceState = {
 
 交互映射：
 
-- 滚动进度 → `frameFloat` → 当前帧高亮与 76 张切片的透明度。
-- `offset = index - frameFloat` → 当前帧中心锚定的 X/Z 时间隧道位置。
+- 滚动进度 → `frameFloat` → 当前帧高亮与 166 张切片的透明度。
+- `offset = index - frameFloat` → 当前帧中心锚定的 X/Z 时间隧道位置；相邻切片步进为 X `0.16`、Z `0.30`。
 - 展开按钮 → `spreadTarget`，控制切片沿 X/Z 轴展开；拖拽不再改变展开状态。
 - Pointer Events 拖拽超过约 8px 起拖死区后，横向增量独立累积不封顶的 `yawTarget`，纵向增量按“下拖俯视、上拖仰视”独立映射到 ±28° 范围内的 `pitchTarget`；斜向拖动同时改变两个角度，可连续绕 Y 轴 360° 旋转。
 - `rotationRig` 统一旋转时间切片，固定相机不随用户视角移动；拖拽时使用 9、松手时使用 7 的短阻尼过渡，不产生松手惯性。
@@ -130,8 +132,8 @@ rhododendron-time-slices/
 │  └─ export_blender_assets.py        Blender Alembic→GLB/切片自动导出脚本
 ├─ public/assets/
 │  ├─ flower.glb                       可选导出检查资产，主界面不加载
-│  ├─ slice-manifest.json              76 帧清单
-│  └─ slices/frame-001.png … 076.png  透明时间切片
+│  ├─ slice-manifest.json              166 帧清单
+│  └─ slices/frame-001.png … 166.png  透明时间切片
 ├─ package.json
 ├─ package-lock.json
 ├─ README.md
@@ -144,12 +146,12 @@ rhododendron-time-slices/
 2. 用 Blender 只读检查场景、对象、动画、骨骼和贴图。
 3. 确认参考视频后段确实包含 3D 场景旋转和时间切片视觉。
 4. 创建 Vite + Three.js 独立工程。
-5. 编写 Blender 自动处理脚本，将兰花 Alembic 缓存烘焙为 morph targets，导出可选 `flower.glb`，并采样 76 张透明 PNG。
+5. 编写 Blender 自动处理脚本，将兰花 Alembic 缓存烘焙为 morph targets，导出可选 `flower.glb`，并按源动画整数帧生成透明 PNG。
 6. 实现实时 GLB 动画、时间切片、滚动映射、切片展开和自由视角旋转；后续按视觉要求移除网页中的实时 GLB 层。
 7. 完成粉彩渐变、透明卡片、雾光、响应式和 reduced-motion 处理。
 8. 执行 `npm install` 和 `npm run build`，构建成功。
 9. 启动本地 Vite 服务，在桌面、移动端和 reduced-motion 场景下进行浏览器验证。
-10. 验证 manifest 和全部 76 张 PNG 均可访问，网页不请求 GLB，滚动和拖拽状态可正常更新。
+10. 验证 manifest 和全部 166 张 PNG 均可访问，网页不请求 GLB，滚动和拖拽状态可正常更新。
 11. 验证正面存在嵌套时间隧道，侧面存在独立切片间距，当前杜鹃花颜色不会被透明叠加洗白。
 
 ## 6. 已知限制与处理方式
@@ -157,7 +159,7 @@ rhododendron-time-slices/
 - 兰花源文件不是骨骼动画，而是依赖外部 Alembic MeshSequenceCache。导出脚本已将每个采样帧烘焙为 shape key，并建立 `Orchid_Time_Slices` morph animation；重新导出时必须提供 `OrchidMeshGrp.abc`。
 - Alembic 缓存约 106 MB，不进入 Git 或网页运行时；如果换机器，需要重新提供缓存路径。
 - Blender 原相机无动画；当前网页使用固定相机与统一转台实现视角旋转，不依赖 Blender 相机动画。
-- 当前网页不加载 `flower.glb`，只使用 76 张透明 PNG；如果未来再次启用实时模型，需要重新建立独立的运行时决策并评估首屏性能。
+- 当前网页不加载 `flower.glb`，只使用 166 张透明 PNG；如果未来再次启用实时模型，需要重新建立独立的运行时决策并评估首屏性能。
 - 时间切片使用 RGBA PNG，而不是直接使用视频帧，以保留透明边缘并避免把 3444×1936 的视频帧全部带入网页。
 - 目前没有加入重型后处理 Bloom，主要使用渐变、透明材质、边缘线、雾光、粒子和轨道光环完成视觉；如性能允许，后续可以增加桌面端轻量 Bloom。
 - 旧 WebP 实验文件不被网页引用，统一排除，不作为运行资产。
@@ -189,7 +191,7 @@ npm run preview
 提交或部署前至少确认：
 
 - `npm run build` 成功。
-- `slice-manifest.json` 与 76 张 PNG 没有 404；网页不应请求 `flower.glb`。
+- `slice-manifest.json` 与 166 张 PNG 没有 404；网页不应请求 `flower.glb`。
 - 滚动起点、中段、终点对应动画起点、中段、终点。
 - 切片可以完全收拢、展开，并支持中途反向拖拽。
 - 画布横向拖拽可连续旋转 360° 及更多圈，纵向拖拽限制在 ±28°；双轴反向操作不会跳变，斜向拖动仍能同时调整视角。

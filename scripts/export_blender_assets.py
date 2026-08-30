@@ -5,9 +5,6 @@ from pathlib import Path
 import bpy
 
 
-SLICE_COUNT = 76
-
-
 def parse_arguments():
     if "--" not in sys.argv:
         raise SystemExit(
@@ -55,10 +52,7 @@ def configure_mesh_cache(model, supplied_cache_path):
 def sample_frames(scene):
     start_frame = scene.frame_start
     end_frame = scene.frame_end
-    return [
-        int(round(start_frame + index * (end_frame - start_frame) / (SLICE_COUNT - 1)))
-        for index in range(SLICE_COUNT)
-    ]
+    return list(range(start_frame, end_frame + 1))
 
 
 def evaluated_mesh(source, depsgraph):
@@ -212,7 +206,7 @@ def render_slices(output_directory, scene, model, frames):
     (output_directory / "slice-manifest.json").write_text(
         json.dumps(
             {
-                "count": SLICE_COUNT,
+                "count": len(frames),
                 "sourceFrameStart": scene.frame_start,
                 "sourceFrameEnd": scene.frame_end,
                 "animationType": "alembic-baked-morph-targets",
