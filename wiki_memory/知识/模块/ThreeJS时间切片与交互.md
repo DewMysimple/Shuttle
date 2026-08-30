@@ -3,7 +3,7 @@ type: knowledge
 status: active
 kind: module
 importance: high
-updated: 2026-08-30
+updated: 2026-08-31
 topic: threejs-time-slices-interaction
 source_logs:
   - "[[日志/2026-08-30-项目初始化与杜鹃花时间切片]]"
@@ -15,6 +15,7 @@ source_logs:
   - "[[日志/2026-08-30-完整帧提取与切片间距调整]]"
   - "[[日志/2026-08-30-长按播放与滚轮缩放交互]]"
   - "[[日志/2026-08-30-播放方向与播放中旋转]]"
+  - "[[日志/2026-08-31-播放控制与前序切片裁切]]"
 supersedes: null
 ---
 
@@ -31,7 +32,8 @@ supersedes: null
 ## 详细内容
 
 - `loadSlices()` 先读取 manifest 的 `count`，当前为 166；左键长按超过 260ms 后 `frameFloat` 按 30fps 从当前帧向 165 播放，右键长按则向 0 倒放。
-- 播放状态用 `frameFloat` 更新全部切片的空间位置、透明度和高亮，不创建 `AnimationMixer`；松开指针会暂停播放，播放期间仍可更新视角。
+- 播放状态用 `frameFloat` 更新切片的空间位置、透明度和高亮，不创建 `AnimationMixer`；松开指针会暂停播放，播放期间仍可更新视角。右侧“正放”“倒放”按钮单击启动对应方向，再次点击当前方向暂停；“开头”“结尾”按钮暂停并定位到首帧或尾帧。
+- 每次更新切片时使用 `currentFrameIndex = floor(frameFloat)`；`index < currentFrameIndex` 的历史切片设为 `visible = false`，其余切片继续按距离分级渲染。倒放回到较早帧时，切片根据新的门槛恢复可见。
 - 每张切片由卡片、边缘线和透明 PNG 平面组成；卡片尺寸为 `2.15 × 1.72`，图片尺寸为 `1.92 × 1.54`，`spread` 乘以 X 轴 `0.16`、Z 轴 `0.30` 的时间步进。
 - 正面强调当前帧与嵌套隧道：中心约 `0.92`，邻近帧按距离衰减，中远帧继续保留低透明度轨迹；侧视时用 `sideView = smoothstep(0.2, 0.86, abs(sin(yaw)))` 适度提高尾部可见度，使每张卡片形成独立的时间梳子。
 - 当前帧和近帧通过运行时 shader 的 `sliceSaturation`、`sliceContrast` 增强主体色彩，不改写 PNG；CSS 白色 screen 雾层保持低覆盖度。

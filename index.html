@@ -32,6 +32,27 @@
             <p id="loading-detail">读取完整动画帧清单</p>
           </div>
 
+          <nav class="playback-controls" aria-label="时间切片播放控制">
+            <button
+              class="playback-button"
+              id="play-forward"
+              type="button"
+              data-playback-direction="1"
+              aria-pressed="false"
+              aria-label="正向播放，再次点击暂停"
+            >正放</button>
+            <button
+              class="playback-button"
+              id="play-reverse"
+              type="button"
+              data-playback-direction="-1"
+              aria-pressed="false"
+              aria-label="倒放，再次点击暂停"
+            >倒放</button>
+            <button class="playback-button" id="jump-start" type="button" aria-label="跳到首帧">开头</button>
+            <button class="playback-button" id="jump-end" type="button" aria-label="跳到尾帧">结尾</button>
+          </nav>
+
           <div class="stage-footer">
             <div class="stage-footer__instruction">
               <span class="gesture-icon" aria-hidden="true">◎</span>

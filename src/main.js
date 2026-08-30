@@ -30,6 +30,9 @@ const loadingPercent = document.querySelector('#loading-percent');
 const loadingBarFill = document.querySelector('#loading-bar-fill');
 const loadingDetail = document.querySelector('#loading-detail');
 const expandButton = document.querySelector('#expand-button');
+const playButtons = [...document.querySelectorAll('[data-playback-direction]')];
+const jumpStartButton = document.querySelector('#jump-start');
+const jumpEndButton = document.querySelector('#jump-end');
 
 const state = {
   frameFloat: 0,
@@ -146,6 +149,15 @@ function setStageStatus(value) {
   if (value === lastStatus) return;
   lastStatus = value;
   stageStatus.textContent = value;
+}
+
+function syncPlaybackButtons() {
+  playButtons.forEach((button) => {
+    const isActive = state.isPlaying
+      && Number(button.dataset.playbackDirection) === state.playbackDirection;
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-pressed', String(isActive));
+  });
 }
 
 function createAtmosphere() {
@@ -368,6 +380,7 @@ function updatePlayback(delta) {
 
   state.frameFloat = state.playbackDirection > 0 ? sliceCount - 1 : 0;
   state.isPlaying = false;
+  syncPlaybackButtons();
   setStageStatus(state.playbackDirection > 0 ? '正向播放结束' : '倒放结束');
 }
 
@@ -400,8 +413,10 @@ function updateSlices(delta, elapsed) {
   sliceRoot.position.y = prefersReducedMotion ? 0 : Math.sin(elapsed * 1.15) * 0.022;
   const reveal = smoothstep(0.025, 0.2, state.spread);
   const sideView = smoothstep(0.2, 0.86, Math.abs(Math.sin(state.yaw)));
+  const currentFrameIndex = Math.floor(state.frameFloat);
 
   slices.forEach((slice, index) => {
+    const isBeforeCurrent = index < currentFrameIndex;
     const offset = index - state.frameFloat;
     const distance = Math.abs(offset);
     const focus = Math.max(0, 1 - distance / 5);
@@ -414,6 +429,9 @@ function updateSlices(delta, elapsed) {
       0,
       0.94,
     );
+
+    slice.visible = !isBeforeCurrent;
+    if (isBeforeCurrent) return;
 
     const drift = prefersReducedMotion ? 0 : state.spread;
     slice.position.x = offset * LATERAL_STEP * state.spread + Math.sin(elapsed * 0.56 + index * 0.18) * 0.012 * drift;
@@ -486,13 +504,33 @@ function beginPlaybackInDirection(direction) {
   if (state.playbackDirection < 0 && state.frameFloat <= 0) state.frameFloat = sliceCount - 1;
   state.isPlaying = true;
   state.isDragging = pointer.active;
+  syncPlaybackButtons();
   setStageStatus(state.playbackDirection > 0 ? '正向播放' : '倒放');
 }
 
 function pausePlayback() {
   if (!state.isPlaying) return;
   state.isPlaying = false;
+  syncPlaybackButtons();
   setStageStatus('已暂停');
+}
+
+function jumpToFrame(frameIndex, label) {
+  if (sliceCount < 1) return;
+  clearLongPressTimer();
+  state.isPlaying = false;
+  state.frameFloat = clamp(frameIndex, 0, sliceCount - 1);
+  syncPlaybackButtons();
+  setStageStatus(label);
+  canvas.focus({ preventScroll: true });
+}
+
+function onPlaybackButtonClick(direction) {
+  if (state.isPlaying && state.playbackDirection === direction) {
+    pausePlayback();
+    return;
+  }
+  beginPlaybackInDirection(direction);
 }
 
 function onPointerDown(event) {
@@ -629,6 +667,13 @@ async function boot() {
   window.addEventListener('blur', onWindowBlur);
   canvas.addEventListener('contextmenu', (event) => event.preventDefault());
   expandButton.addEventListener('click', toggleSpread);
+  playButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      onPlaybackButtonClick(Number(button.dataset.playbackDirection));
+    });
+  });
+  jumpStartButton.addEventListener('click', () => jumpToFrame(0, '已到开头'));
+  jumpEndButton.addEventListener('click', () => jumpToFrame(sliceCount - 1, '已到结尾'));
 
   try {
     setStageStatus('载入切片');

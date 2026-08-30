@@ -5,3 +5,8 @@
 完成实质任务后必须执行记忆同步：更新相关长期页面，新增 `wiki_memory/日志/YYYY-MM-DD-任务标题.md`，运行 `python wiki_memory/工具/memory_lint.py check`；如新增日志，先运行 `python wiki_memory/工具/memory_lint.py index` 刷新唯一日志索引。
 
 每次代码、视觉、运行资产或记忆文件修改，都必须在本地验证后创建 Git 提交并推送到 `origin/main`。不提交外层 Blender、MP4、FBX、MAX、Alembic 和原始贴图素材。
+
+## Git 提交回报约定
+
+- 每次完成提交并推送后，必须在聊天回复中明确报告当前提交的完整 40 位 commit hash，例如 `e38d7155a586b605af6a04291d8a5ab27ded933d`。
+- 同时报告 commit message、远程目标（`origin/main`）以及工作区是否干净；不得只报告短 hash 或笼统说明“已推送”。
