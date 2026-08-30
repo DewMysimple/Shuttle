@@ -5,9 +5,11 @@ import './style.css';
 const SLICE_COUNT = 76;
 const MODEL_URL = '/assets/flower.glb';
 const FRAME_URL = (index) => `/assets/slices/frame-${String(index + 1).padStart(3, '0')}.png`;
-const ORBIT_SENSITIVITY = 0.012;
-const PITCH_SENSITIVITY = 0.009;
-const PITCH_LIMIT = THREE.MathUtils.degToRad(68);
+const DRAG_DEADZONE = 8;
+const YAW_PER_VIEWPORT = Math.PI * 1.4;
+const PITCH_PER_VIEWPORT = THREE.MathUtils.degToRad(56);
+const PITCH_LIMIT = THREE.MathUtils.degToRad(28);
+const ROTATION_SMOOTHING = 14;
 
 const canvas = document.querySelector('#scene');
 const section = document.querySelector('.slice-section');
@@ -24,8 +26,8 @@ const state = {
   frameFloat: 0,
   spread: 0,
   spreadTarget: 0,
-  orbit: 0,
-  orbitTarget: 0,
+  yaw: 0,
+  yawTarget: 0,
   pitch: 0.08,
   pitchTarget: 0.08,
   isDragging: false,
@@ -41,14 +43,15 @@ const pointer = {
   startY: 0,
   currentX: 0,
   currentY: 0,
-  startSpread: 0,
-  startOrbit: 0,
-  startPitch: 0,
+  lastX: 0,
+  lastY: 0,
+  axis: null,
 };
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(33, 1, 0.1, 100);
-camera.position.set(4.2, 1.6, 8.8);
+camera.position.set(0, 1.25, isSmallViewport ? 10.2 : 8.7);
+camera.lookAt(0, 0.5, 0);
 
 const renderer = new THREE.WebGLRenderer({
   canvas,
@@ -79,7 +82,9 @@ const heroRoot = new THREE.Group();
 const sliceRoot = new THREE.Group();
 sliceRoot.scale.setScalar(isSmallViewport ? 0.78 : 1);
 timeline.add(sliceRoot);
-scene.add(timeline, heroRoot);
+const rotationRig = new THREE.Group();
+rotationRig.add(timeline, heroRoot);
+scene.add(rotationRig);
 
 const slices = [];
 let mixer = null;
@@ -212,8 +217,10 @@ function createAtmosphere() {
 }
 
 function updateAtmosphere(elapsed) {
-  atmosphereRoot.rotation.y = state.orbit * 0.035 + Math.sin(elapsed * 0.12) * 0.025;
-  atmosphereRoot.rotation.x = state.pitch * 0.045 + Math.cos(elapsed * 0.18) * 0.018;
+  if (prefersReducedMotion) return;
+
+  atmosphereRoot.rotation.y = Math.sin(elapsed * 0.12) * 0.025;
+  atmosphereRoot.rotation.x = Math.cos(elapsed * 0.18) * 0.018;
 
   atmosphereParticles.forEach((particleField) => {
     const { basePositions, seeds } = particleField.userData;
@@ -345,40 +352,24 @@ function updateScrollProgress() {
 function updateHero(delta, elapsed) {
   if (mixer && clipDuration > 0) mixer.setTime(state.scrollProgress * clipDuration);
 
-  const cinematic = smoothstep(0.52, 0.95, state.scrollProgress);
-  const automaticOrbit = cinematic * 0.32;
-  state.orbit = damp(state.orbit, state.orbitTarget + automaticOrbit, 5, delta);
-  state.pitch = damp(state.pitch, state.pitchTarget, 5, delta);
+  state.yaw = damp(state.yaw, state.yawTarget, ROTATION_SMOOTHING, delta);
+  state.pitch = damp(state.pitch, state.pitchTarget, ROTATION_SMOOTHING, delta);
 
   if (flower) {
     const breathing = prefersReducedMotion ? 0 : Math.sin(elapsed * 1.15) * 0.022;
     flower.position.y = flowerBaseY + breathing;
   }
 
-  heroRoot.rotation.y = damp(heroRoot.rotation.y, state.orbit + state.spread * 0.12, 4.5, delta);
-  heroRoot.rotation.x = damp(heroRoot.rotation.x, state.pitch, 4.5, delta);
-  heroRoot.rotation.z = damp(heroRoot.rotation.z, Math.sin(state.scrollProgress * Math.PI) * 0.035, 4.5, delta);
+  rotationRig.rotation.y = state.yaw;
+  rotationRig.rotation.x = state.pitch;
   const breathingScale = prefersReducedMotion ? 1 : 1 + Math.sin(elapsed * 1.15 + 0.8) * 0.006;
   heroRoot.scale.setScalar(breathingScale);
-
-  const cameraOrbit = state.orbit * 0.65;
-  const cameraRadius = (isSmallViewport ? 10.2 : 8.7) - state.spread * (isSmallViewport ? 0.45 : 0.7);
-  const targetCamera = new THREE.Vector3(
-    Math.sin(cameraOrbit) * 1.65,
-    1.25 + Math.sin(state.scrollProgress * Math.PI) * 0.25 + Math.sin(elapsed * 0.45) * 0.035,
-    cameraRadius,
-  );
-  camera.position.lerp(targetCamera, prefersReducedMotion ? 1 : 1 - Math.exp(-4 * delta));
-  camera.lookAt(0, 0.5, 0);
 }
 
 function updateSlices(delta, elapsed) {
   state.spread = damp(state.spread, state.spreadTarget, 7, delta);
   const reveal = smoothstep(0.025, 0.2, state.spread);
   const center = (SLICE_COUNT - 1) / 2;
-
-  timeline.rotation.y = damp(timeline.rotation.y, state.orbit * 0.28, 4, delta);
-  timeline.rotation.x = damp(timeline.rotation.x, -state.spread * 0.06 + state.pitch * 0.18, 4, delta);
 
   slices.forEach((slice, index) => {
     const offset = index - center;
@@ -412,13 +403,28 @@ function updateSlices(delta, elapsed) {
 }
 
 function updateInteraction() {
-  const deltaX = pointer.currentX - pointer.startX;
-  const deltaY = pointer.currentY - pointer.startY;
-  state.spreadTarget = clamp(pointer.startSpread + (deltaX / window.innerWidth) * 1.35, 0, 1);
-  // Orbit is intentionally unbounded: each drag adds angle, so repeated drags
-  // can keep turning the object through a full 360 degrees and beyond.
-  state.orbitTarget = pointer.startOrbit + deltaX * ORBIT_SENSITIVITY;
-  state.pitchTarget = clamp(pointer.startPitch - deltaY * PITCH_SENSITIVITY, -PITCH_LIMIT, PITCH_LIMIT);
+  const totalX = pointer.currentX - pointer.startX;
+  const totalY = pointer.currentY - pointer.startY;
+
+  if (!pointer.axis) {
+    if (Math.hypot(totalX, totalY) < DRAG_DEADZONE) return;
+    pointer.axis = Math.abs(totalX) >= Math.abs(totalY) ? 'horizontal' : 'vertical';
+  }
+
+  if (pointer.axis === 'horizontal') {
+    const deltaX = pointer.currentX - pointer.lastX;
+    state.yawTarget += (deltaX / Math.max(window.innerWidth, 1)) * YAW_PER_VIEWPORT;
+    pointer.lastX = pointer.currentX;
+    return;
+  }
+
+  const deltaY = pointer.currentY - pointer.lastY;
+  state.pitchTarget = clamp(
+    state.pitchTarget - (deltaY / Math.max(window.innerHeight, 1)) * PITCH_PER_VIEWPORT,
+    -PITCH_LIMIT,
+    PITCH_LIMIT,
+  );
+  pointer.lastY = pointer.currentY;
 }
 
 function onPointerDown(event) {
@@ -427,9 +433,9 @@ function onPointerDown(event) {
   pointer.startY = event.clientY;
   pointer.currentX = event.clientX;
   pointer.currentY = event.clientY;
-  pointer.startSpread = state.spreadTarget;
-  pointer.startOrbit = state.orbitTarget;
-  pointer.startPitch = state.pitchTarget;
+  pointer.lastX = event.clientX;
+  pointer.lastY = event.clientY;
+  pointer.axis = null;
   state.isDragging = true;
   canvas.setPointerCapture(event.pointerId);
 }
@@ -443,6 +449,7 @@ function onPointerMove(event) {
 
 function onPointerUp(event) {
   pointer.active = false;
+  pointer.axis = null;
   state.isDragging = false;
   if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
 }
@@ -453,13 +460,21 @@ function toggleSpread() {
 }
 
 function onKeyDown(event) {
-  if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
+  if (event.key === 'ArrowRight') {
     event.preventDefault();
-    state.spreadTarget = clamp(state.spreadTarget + 0.12, 0, 1);
+    state.yawTarget += THREE.MathUtils.degToRad(10);
   }
-  if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
+  if (event.key === 'ArrowLeft') {
     event.preventDefault();
-    state.spreadTarget = clamp(state.spreadTarget - 0.12, 0, 1);
+    state.yawTarget -= THREE.MathUtils.degToRad(10);
+  }
+  if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    state.pitchTarget = clamp(state.pitchTarget + THREE.MathUtils.degToRad(4), -PITCH_LIMIT, PITCH_LIMIT);
+  }
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    state.pitchTarget = clamp(state.pitchTarget - THREE.MathUtils.degToRad(4), -PITCH_LIMIT, PITCH_LIMIT);
   }
   if (event.key === 'Home') {
     event.preventDefault();
@@ -471,7 +486,7 @@ function onKeyDown(event) {
   }
   if (event.key.toLowerCase() === 'r') {
     event.preventDefault();
-    state.orbitTarget = 0;
+    state.yawTarget = 0;
     state.pitchTarget = 0.08;
   }
 }
