@@ -7,8 +7,7 @@ const CARD_WIDTH = 2.15;
 const CARD_HEIGHT = 1.72;
 const IMAGE_WIDTH = 1.92;
 const IMAGE_HEIGHT = 1.54;
-const DEPTH_STEP = 0.3;
-const LATERAL_STEP = 0.16;
+const LINE_STEP = 0.3;
 const DRAG_DEADZONE = 8;
 const LONG_PRESS_DELAY = 260;
 const PLAYBACK_FPS = 30;
@@ -393,7 +392,7 @@ function updateCamera(delta, elapsed) {
     Math.sin(elapsed * 0.56 + state.frameFloat * 0.18) * 0.012 * focusDrift,
     Math.sin(state.frameFloat * 0.33) * 0.03 * state.spread
       + Math.sin(elapsed * 0.78 + state.frameFloat * 0.24) * 0.028 * focusDrift,
-    -0.55 + Math.cos(elapsed * 0.47 + state.frameFloat * 0.14) * 0.018 * focusDrift,
+    0,
   );
   sliceRoot.localToWorld(cameraFocusPoint);
   camera.lookAt(cameraFocusPoint);
@@ -433,13 +432,8 @@ function updateSlices(delta, elapsed) {
     slice.visible = !isBeforeCurrent;
     if (isBeforeCurrent) return;
 
-    const drift = prefersReducedMotion ? 0 : state.spread;
-    slice.position.x = offset * LATERAL_STEP * state.spread + Math.sin(elapsed * 0.56 + index * 0.18) * 0.012 * drift;
-    slice.position.y = Math.sin(index * 0.33) * 0.03 * state.spread + Math.sin(elapsed * 0.78 + index * 0.24) * 0.028 * drift;
-    slice.position.z = -offset * DEPTH_STEP * state.spread - 0.55 + Math.cos(elapsed * 0.47 + index * 0.14) * 0.018 * drift;
-    slice.rotation.x = Math.sin(elapsed * 0.38 + index * 0.16) * 0.008 * drift;
-    slice.rotation.y = offset * 0.012 * state.spread + Math.sin(elapsed * 0.46 + index * 0.11) * 0.012 * drift;
-    slice.rotation.z = Math.sin(index * 0.17) * 0.012 * state.spread + Math.cos(elapsed * 0.52 + index * 0.2) * 0.008 * drift;
+    slice.position.set(offset * LINE_STEP * state.spread, 0, 0);
+    slice.rotation.set(0, 0, 0);
 
     slice.userData.card.material.opacity = reveal * (0.028 + sideView * 0.025 + focus * 0.035);
     slice.userData.outline.material.opacity = reveal * (0.18 + sideView * 0.05 + focus * 0.22);
