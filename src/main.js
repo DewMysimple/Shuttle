@@ -14,7 +14,8 @@ const DRAG_DEADZONE = 8;
 const YAW_PER_VIEWPORT = Math.PI * 1.4;
 const PITCH_PER_VIEWPORT = THREE.MathUtils.degToRad(56);
 const PITCH_LIMIT = THREE.MathUtils.degToRad(28);
-const ROTATION_SMOOTHING = 14;
+const ROTATION_DRAG_SMOOTHING = 9;
+const ROTATION_RELEASE_SMOOTHING = 7;
 
 const canvas = document.querySelector('#scene');
 const section = document.querySelector('.slice-section');
@@ -50,7 +51,7 @@ const pointer = {
   currentY: 0,
   lastX: 0,
   lastY: 0,
-  axis: null,
+  moved: false,
 };
 
 const scene = new THREE.Scene();
@@ -337,8 +338,9 @@ function updateScrollProgress() {
 }
 
 function updateRotation(delta) {
-  state.yaw = damp(state.yaw, state.yawTarget, ROTATION_SMOOTHING, delta);
-  state.pitch = damp(state.pitch, state.pitchTarget, ROTATION_SMOOTHING, delta);
+  const smoothing = state.isDragging ? ROTATION_DRAG_SMOOTHING : ROTATION_RELEASE_SMOOTHING;
+  state.yaw = damp(state.yaw, state.yawTarget, smoothing, delta);
+  state.pitch = damp(state.pitch, state.pitchTarget, smoothing, delta);
 
   rotationRig.rotation.y = state.yaw;
   rotationRig.rotation.x = state.pitch;
@@ -397,24 +399,23 @@ function updateInteraction() {
   const totalX = pointer.currentX - pointer.startX;
   const totalY = pointer.currentY - pointer.startY;
 
-  if (!pointer.axis) {
+  if (!pointer.moved) {
     if (Math.hypot(totalX, totalY) < DRAG_DEADZONE) return;
-    pointer.axis = Math.abs(totalX) >= Math.abs(totalY) ? 'horizontal' : 'vertical';
-  }
-
-  if (pointer.axis === 'horizontal') {
-    const deltaX = pointer.currentX - pointer.lastX;
-    state.yawTarget += (deltaX / Math.max(window.innerWidth, 1)) * YAW_PER_VIEWPORT;
+    pointer.moved = true;
     pointer.lastX = pointer.currentX;
+    pointer.lastY = pointer.currentY;
     return;
   }
 
+  const deltaX = pointer.currentX - pointer.lastX;
   const deltaY = pointer.currentY - pointer.lastY;
+  state.yawTarget += (deltaX / Math.max(window.innerWidth, 1)) * YAW_PER_VIEWPORT;
   state.pitchTarget = clamp(
-    state.pitchTarget - (deltaY / Math.max(window.innerHeight, 1)) * PITCH_PER_VIEWPORT,
+    state.pitchTarget + (deltaY / Math.max(window.innerHeight, 1)) * PITCH_PER_VIEWPORT,
     -PITCH_LIMIT,
     PITCH_LIMIT,
   );
+  pointer.lastX = pointer.currentX;
   pointer.lastY = pointer.currentY;
 }
 
@@ -426,7 +427,7 @@ function onPointerDown(event) {
   pointer.currentY = event.clientY;
   pointer.lastX = event.clientX;
   pointer.lastY = event.clientY;
-  pointer.axis = null;
+  pointer.moved = false;
   state.isDragging = true;
   canvas.setPointerCapture(event.pointerId);
 }
@@ -440,7 +441,7 @@ function onPointerMove(event) {
 
 function onPointerUp(event) {
   pointer.active = false;
-  pointer.axis = null;
+  pointer.moved = false;
   state.isDragging = false;
   if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
 }
@@ -461,11 +462,11 @@ function onKeyDown(event) {
   }
   if (event.key === 'ArrowUp') {
     event.preventDefault();
-    state.pitchTarget = clamp(state.pitchTarget + THREE.MathUtils.degToRad(4), -PITCH_LIMIT, PITCH_LIMIT);
+    state.pitchTarget = clamp(state.pitchTarget - THREE.MathUtils.degToRad(4), -PITCH_LIMIT, PITCH_LIMIT);
   }
   if (event.key === 'ArrowDown') {
     event.preventDefault();
-    state.pitchTarget = clamp(state.pitchTarget - THREE.MathUtils.degToRad(4), -PITCH_LIMIT, PITCH_LIMIT);
+    state.pitchTarget = clamp(state.pitchTarget + THREE.MathUtils.degToRad(4), -PITCH_LIMIT, PITCH_LIMIT);
   }
   if (event.key === 'Home') {
     event.preventDefault();

@@ -20,6 +20,7 @@ supersedes: null
 | 2026-08-30 | ui | - | archived | stable-rotation-interaction | [[日志/2026-08-30-稳定旋转交互.md|2026-08-30｜稳定旋转交互]] |
 | 2026-08-30 | ui | 移除主界面中央实时 3D 兰花，只保留 76 张透明时间切片及其交互。 | archived | slices-only-runtime | [[日志/2026-08-30-移除实时模型仅保留时间切片.md|2026-08-30｜移除实时模型，仅保留时间切片]] |
 | 2026-08-30 | ui | 将透明切片叠加优化为当前帧中心锚定的 X/Z 空间时间隧道，并提升主体可读性。 | archived | spatial-time-tunnel-composition | [[日志/2026-08-30-时间隧道切片优化.md|2026-08-30｜时间隧道切片优化]] |
+| 2026-08-30 | bug | 修正纵向拖拽方向，并降低旋转跟随的生硬感。 | archived | rotation-feel-and-pitch-direction | [[日志/2026-08-30-旋转手感与俯仰方向修复.md|2026-08-30｜旋转手感与俯仰方向修复]] |
 | 2026-08-30 | maintenance | 将网页工程初始化为独立 Git 仓库并推送到指定远程仓库。 | archived | repository-initialization | [[日志/2026-08-30-工程初始化与远程管理.md|2026-08-30｜工程初始化与远程管理]] |
 | 2026-08-30 | bug | 修复双击 `runStart.cmd` 无法启动工程的问题。 | archived | windows-start-script | [[日志/2026-08-30-启动脚本修复.md|2026-08-30｜Windows 启动脚本修复]] |
 | 2026-08-30 | feature | 按视觉稿只保留一个主界面，并将主体从初版杜鹃花切换为用户指定的兰花。 | archived | single-interface-and-orchid-replacement | [[日志/2026-08-30-单一主界面与兰花替换.md|2026-08-30｜单一主界面与兰花替换]] |
