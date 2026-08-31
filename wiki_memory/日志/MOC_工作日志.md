@@ -17,6 +17,7 @@ supersedes: null
 | --- | --- | --- | --- | --- | --- |
 | 2026-08-31 | ui | - | archived | spacing-view-speed-and-collapse-focus | [[日志/2026-08-31-间距视角速度与收拢基准调整.md|间距、视角速度与收拢基准调整]] |
 | 2026-08-31 | ui | 把当前 X+Z 时间隧道切片改成正面平行、沿单一水平直线排列，消除斜向、弯曲和 S 形视觉路径。 | archived | straight-line-time-slice-layout | [[日志/2026-08-31-直线时间切片排列.md|2026-08-31｜直线时间切片排列]] |
+| 2026-08-31 | bug | - | archived | maximum-zoom-focus-centering | [[日志/2026-08-31-最大聚焦主体居中修复.md|最大聚焦主体居中修复]] |
 | 2026-08-31 | ui | - | archived | natural-time-slice-playback | [[日志/2026-08-31-时间切片播放自然化.md|时间切片播放自然化]] |
 | 2026-08-31 | feature | 播放推进到当前时间切片后，隐藏已经越过当前帧的历史切片；在主界面右侧增加一次点击即可使用的正放、倒放、开头和结尾控制；同步记录每次推送必须回报完整 commit hash 的工程约定。 | archived | playback-controls-and-past-slice-culling | [[日志/2026-08-31-播放控制与前序切片裁切.md|2026-08-31｜播放控制与前序切片裁切]] |
 | 2026-08-31 | ui | - | archived | active-time-slice-focus | [[日志/2026-08-31-当前帧聚焦与微光强化.md|当前帧聚焦与微光强化]] |

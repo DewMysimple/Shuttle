@@ -20,6 +20,8 @@ const CAMERA_ZOOM_SMOOTHING = 11;
 const CAMERA_ZOOM_SENSITIVITY = 0.011;
 const CAMERA_MIN_DISTANCE = 3;
 const CAMERA_MAX_DISTANCE = 15.5;
+const CAMERA_FOCUS_Y = 0.04;
+const CAMERA_EYE_HEIGHT_OFFSET = 0.75;
 const FOCUS_GLOW_BASE = 0.074;
 const FOCUS_GLOW_BREATH = 0.018;
 const FOCUS_GLOW_CYCLE = 1.7;
@@ -78,9 +80,9 @@ const cameraZoom = {
   current: defaultCameraDistance,
   target: defaultCameraDistance,
 };
-const cameraFocusPoint = new THREE.Vector3(0, 0.5, 0);
-camera.position.set(0, 1.25, defaultCameraDistance);
-camera.lookAt(0, 0.5, 0);
+const cameraFocusPoint = new THREE.Vector3(0, CAMERA_FOCUS_Y, 0);
+camera.position.set(0, CAMERA_FOCUS_Y + CAMERA_EYE_HEIGHT_OFFSET, defaultCameraDistance);
+camera.lookAt(0, CAMERA_FOCUS_Y, 0);
 
 const renderer = new THREE.WebGLRenderer({
   canvas,
@@ -516,7 +518,7 @@ function updateCamera(delta, elapsed) {
   const focusDrift = prefersReducedMotion ? 0 : state.spread;
   cameraFocusPoint.set(
     Math.sin(elapsed * 0.56) * 0.008 * focusDrift,
-    0.5 + Math.sin(elapsed * 0.78) * 0.018 * focusDrift,
+    CAMERA_FOCUS_Y + Math.sin(elapsed * 0.78) * 0.018 * focusDrift,
     0,
   );
   sliceRoot.localToWorld(cameraFocusPoint);
