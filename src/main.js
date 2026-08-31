@@ -20,8 +20,8 @@ const CAMERA_ZOOM_SMOOTHING = 11;
 const CAMERA_ZOOM_SENSITIVITY = 0.011;
 const CAMERA_MIN_DISTANCE = 3;
 const CAMERA_MAX_DISTANCE = 15.5;
-const FOCUS_GLOW_BASE = 0.052;
-const FOCUS_GLOW_BREATH = 0.014;
+const FOCUS_GLOW_BASE = 0.074;
+const FOCUS_GLOW_BREATH = 0.018;
 const FOCUS_GLOW_CYCLE = 1.7;
 
 const canvas = document.querySelector('#scene');
@@ -282,7 +282,7 @@ function createSlice(texture, index) {
 
   const group = new THREE.Group();
   const cardMaterial = new THREE.MeshBasicMaterial({
-    color: index % 3 === 0 ? 0xffd5cf : index % 3 === 1 ? 0xdcccf4 : 0xffedc8,
+    color: index % 3 === 0 ? 0xffb6bd : index % 3 === 1 ? 0xc8b4f2 : 0xffd38f,
     transparent: true,
     opacity: 0,
     depthWrite: false,
@@ -313,13 +313,15 @@ function createSlice(texture, index) {
     toneMapped: false,
   });
   imageMaterial.onBeforeCompile = (shader) => {
-    shader.uniforms.sliceSaturation = { value: 1.16 };
-    shader.uniforms.sliceContrast = { value: 1.08 };
+    shader.uniforms.sliceSaturation = { value: 1.12 };
+    shader.uniforms.sliceContrast = { value: 1.04 };
+    shader.uniforms.sliceWarmth = { value: 0 };
     imageMaterial.userData.shader = shader;
     shader.fragmentShader = shader.fragmentShader.replace(
       'void main() {',
       `uniform float sliceSaturation;
 uniform float sliceContrast;
+uniform float sliceWarmth;
 
 void main() {`,
     );
@@ -328,7 +330,9 @@ void main() {`,
       `vec3 outgoingLight = reflectedLight.indirectDiffuse;
   float sliceLuminance = dot(outgoingLight, vec3(0.299, 0.587, 0.114));
   outgoingLight = mix(vec3(sliceLuminance), outgoingLight, sliceSaturation);
-  outgoingLight = (outgoingLight - 0.5) * sliceContrast + 0.5;`,
+  outgoingLight = (outgoingLight - 0.5) * sliceContrast + 0.5;
+  vec3 coralLift = outgoingLight * vec3(1.14, 0.88, 0.93);
+  outgoingLight = mix(outgoingLight, coralLift, sliceWarmth);`,
     );
   };
   const image = new THREE.Mesh(new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT), imageMaterial);
@@ -337,7 +341,7 @@ void main() {`,
 
   const glowMaterial = new THREE.MeshBasicMaterial({
     map: texture,
-    color: 0xffb9dc,
+    color: 0xff5f70,
     transparent: true,
     opacity: 0,
     depthWrite: false,
@@ -434,23 +438,23 @@ function updateSlices(delta, elapsed) {
   slices.forEach((slice, index) => {
     const offset = index - state.frameFloat;
     const distance = Math.abs(offset);
-    const activeWeight = 1 - smoothstep(0, 1.25, distance);
-    const tailOpacity = 0.02 + sideView * 0.025;
-    const nearOpacity = distance < 4 ? 0.3 - distance * 0.06 : 0;
-    const middleOpacity = distance >= 4 ? 0.1 * Math.exp(-(distance - 4) / 8) : 0;
+    const activeWeight = 1 - smoothstep(0, 0.9, distance);
+    const tailOpacity = 0.012 + sideView * 0.018;
+    const nearOpacity = distance < 4 ? 0.2 - distance * 0.045 : 0;
+    const middleOpacity = distance >= 4 ? 0.07 * Math.exp(-(distance - 4) / 7) : 0;
     const timelineOpacity = clamp(
-      Math.max(activeWeight * 0.96, nearOpacity, middleOpacity + tailOpacity, tailOpacity),
+      Math.max(activeWeight * 0.99, nearOpacity, middleOpacity + tailOpacity, tailOpacity),
       0,
-      0.96,
+      0.99,
     );
     const imageOpacity = clamp(
-      collapseFocus * (index === currentFrame ? 0.96 : 0)
+      collapseFocus * (index === currentFrame ? 0.99 : 0)
         + (1 - collapseFocus) * reveal * timelineOpacity,
       0,
-      0.96,
+      0.99,
     );
-    const collapsedCardOpacity = index === currentFrame ? 0.055 : 0;
-    const collapsedOutlineOpacity = index === currentFrame ? 0.42 : 0;
+    const collapsedCardOpacity = index === currentFrame ? 0.075 : 0;
+    const collapsedOutlineOpacity = index === currentFrame ? 0.52 : 0;
     const glowFocus = clamp(
       collapseFocus * (index === currentFrame ? 1 : 0) + (1 - collapseFocus) * reveal * activeWeight,
       0,
@@ -472,18 +476,21 @@ function updateSlices(delta, elapsed) {
     slice.rotation.set(0, 0, 0);
 
     slice.userData.card.material.opacity = collapseFocus * collapsedCardOpacity
-      + (1 - collapseFocus) * reveal * (0.018 + sideView * 0.02 + activeWeight * 0.028);
+      + (1 - collapseFocus) * reveal * (0.014 + sideView * 0.016 + activeWeight * 0.05);
     slice.userData.outline.material.opacity = collapseFocus * collapsedOutlineOpacity
-      + (1 - collapseFocus) * reveal * (0.12 + sideView * 0.045 + activeWeight * 0.2);
+      + (1 - collapseFocus) * reveal * (0.1 + sideView * 0.04 + activeWeight * 0.34);
     slice.userData.image.material.opacity = imageOpacity;
     slice.userData.glow.material.opacity = glowFocus * glowPulse;
-    slice.userData.glow.scale.setScalar(1.035 + glowFocus * 0.012);
+    slice.userData.glow.scale.setScalar(1.02 + glowFocus * 0.04);
     const shader = slice.userData.image.material.userData.shader;
     if (shader) {
-      shader.uniforms.sliceSaturation.value = 0.98 + activeWeight * 0.42 + sideView * 0.03;
-      shader.uniforms.sliceContrast.value = 1.02 + activeWeight * 0.16;
+      shader.uniforms.sliceSaturation.value = 1.04 + activeWeight * 0.82 + sideView * 0.04;
+      shader.uniforms.sliceContrast.value = 1.02 + activeWeight * 0.27;
+      shader.uniforms.sliceWarmth.value = activeWeight * 0.28;
     }
-    slice.scale.setScalar(0.88 + activeWeight * 0.12 * reveal);
+    slice.scale.setScalar(
+      0.86 + activeWeight * 0.18 * reveal + collapseFocus * (index === currentFrame ? 0.08 : 0),
+    );
   });
 
   const frame = Math.round(state.frameFloat) + 1;
