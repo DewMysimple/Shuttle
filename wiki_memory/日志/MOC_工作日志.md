@@ -16,6 +16,7 @@ supersedes: null
 | 时间 | 类型 | 目标 | 状态 | 主题 | 日志 |
 | --- | --- | --- | --- | --- | --- |
 | 2026-08-31 | ui | - | archived | spacing-view-speed-and-collapse-focus | [[日志/2026-08-31-间距视角速度与收拢基准调整.md|间距、视角速度与收拢基准调整]] |
+| 2026-08-31 | ui | - | archived | playback-depth-glow-balance | [[日志/2026-08-31-纵深光晕与播放层次修复.md|纵深光晕与播放层次修复]] |
 | 2026-08-31 | ui | 把当前 X+Z 时间隧道切片改成正面平行、沿单一水平直线排列，消除斜向、弯曲和 S 形视觉路径。 | archived | straight-line-time-slice-layout | [[日志/2026-08-31-直线时间切片排列.md|2026-08-31｜直线时间切片排列]] |
 | 2026-08-31 | bug | - | archived | maximum-zoom-focus-centering | [[日志/2026-08-31-最大聚焦主体居中修复.md|最大聚焦主体居中修复]] |
 | 2026-08-31 | ui | - | archived | natural-time-slice-playback | [[日志/2026-08-31-时间切片播放自然化.md|时间切片播放自然化]] |

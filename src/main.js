@@ -22,12 +22,15 @@ const CAMERA_MIN_DISTANCE = 3;
 const CAMERA_MAX_DISTANCE = 15.5;
 const CAMERA_FOCUS_Y = 0.04;
 const CAMERA_EYE_HEIGHT_OFFSET = 0.75;
-const FOCUS_GLOW_BASE = 0.074;
-const FOCUS_GLOW_BREATH = 0.018;
+const FOCUS_GLOW_BASE = 0.108;
+const FOCUS_GLOW_BREATH = 0.024;
 const FOCUS_GLOW_CYCLE = 1.7;
 const FOCUS_TRAIL_COUNT = 5;
 const FOCUS_TRAIL_FRAME_STEP = 3;
-const FOCUS_TRAIL_SPACING = 0.055;
+const FOCUS_TRAIL_SPACING = 0.09;
+const FOCUS_TRAIL_DEPTH_STEP = 0.085;
+const PLAYBACK_CURSOR_DECAY = 4.5;
+const PLAYBACK_CURSOR_CORE_DECAY = 1.35;
 const PLAYBACK_BLEND_SMOOTHING = 9;
 
 const canvas = document.querySelector('#scene');
@@ -288,13 +291,17 @@ function updateAtmosphere(elapsed) {
     ring.rotation.y += spin * 0.002;
     ring.rotation.z = Math.sin(elapsed * 0.17 + phase) * 0.07;
     ring.scale.setScalar(1 + Math.sin(elapsed * 0.5 + phase) * 0.025);
-    ring.material.opacity = 0.055 + Math.sin(elapsed * 0.7 + phase) * 0.018;
+    ring.material.opacity = 0.055
+      + Math.sin(elapsed * 0.7 + phase) * 0.018
+      + playbackBlend * (0.022 - index * 0.004);
   });
 
-  atmosphereHalos.forEach((halo) => {
+  atmosphereHalos.forEach((halo, index) => {
     const { phase } = halo.userData;
     halo.scale.setScalar(1 + Math.sin(elapsed * 0.32 + phase) * 0.045);
-    halo.material.opacity = 0.028 + Math.sin(elapsed * 0.48 + phase) * 0.009;
+    halo.material.opacity = 0.028
+      + Math.sin(elapsed * 0.48 + phase) * 0.009
+      + playbackBlend * (0.032 - index * 0.008);
   });
 }
 
@@ -595,8 +602,10 @@ function updateFocus(delta, elapsed) {
     trail.material.map = sliceTextures[trailFrame];
     trail.material.opacity = trailVisibility * trailOpacity[index];
     trail.position.x = -state.playbackDirection * (index + 1) * FOCUS_TRAIL_SPACING * trailVisibility;
+    trail.position.z = 0.04
+      - state.playbackDirection * (index + 1) * FOCUS_TRAIL_DEPTH_STEP * trailVisibility;
     trail.position.y = ((index % 2 === 0 ? 1 : -1) * (index + 1) * 0.012) * trailVisibility;
-    trail.scale.setScalar(0.98 - index * 0.028);
+    trail.scale.setScalar(1 - index * 0.04);
   });
 }
 
@@ -606,28 +615,37 @@ function updateSlices(delta, elapsed) {
   const reveal = smoothstep(0.025, 0.2, state.spread);
   const sideView = smoothstep(0.2, 0.86, Math.abs(Math.sin(state.yaw)));
   const timelineCenter = (sliceCount - 1) / 2;
-  const timelineVisibility = reveal * (1 - playbackBlend * 0.78);
+  const timelineVisibility = reveal * (0.74 - playbackBlend * 0.22);
   slices.forEach((slice, index) => {
     const distance = Math.abs(index - timelineCenter);
     const timelineFade = Math.exp(-distance / 15);
+    const playbackDistance = Math.abs(index - state.frameFloat);
+    const playbackCursor = reveal * playbackBlend * Math.exp(-playbackDistance / PLAYBACK_CURSOR_DECAY);
+    const playbackCursorCore = reveal
+      * playbackBlend
+      * Math.exp(-playbackDistance / PLAYBACK_CURSOR_CORE_DECAY);
 
     slice.visible = true;
     slice.position.set(0, 0, -(index - timelineCenter) * SLICE_DEPTH_STEP * state.spread);
     slice.rotation.set(0, 0, 0);
 
     slice.userData.card.material.opacity = timelineVisibility
-      * (0.006 + sideView * 0.01 + timelineFade * 0.016);
+      * (0.006 + sideView * 0.01 + timelineFade * 0.016)
+      + playbackCursor * 0.012;
     slice.userData.outline.material.opacity = timelineVisibility
-      * (0.035 + sideView * 0.02 + timelineFade * 0.06);
-    slice.userData.image.material.opacity = timelineVisibility * (0.002 + timelineFade * 0.05);
-    slice.userData.glow.material.opacity = 0;
+      * (0.035 + sideView * 0.02 + timelineFade * 0.06)
+      + playbackCursor * (0.075 + sideView * 0.025);
+    slice.userData.image.material.opacity = timelineVisibility * (0.002 + timelineFade * 0.05)
+      + playbackCursor * 0.048;
+    slice.userData.glow.material.opacity = playbackCursorCore * (0.032 + sideView * 0.012);
+    slice.userData.glow.scale.setScalar(1.01 + playbackCursorCore * 0.06);
     updateGradedMaterial(
       slice.userData.image.material,
-      1.04 + timelineFade * 0.1,
-      1.02 + timelineFade * 0.08,
-      timelineFade * 0.025,
+      1.04 + timelineFade * 0.1 + playbackCursor * 0.22,
+      1.02 + timelineFade * 0.08 + playbackCursor * 0.1,
+      timelineFade * 0.025 + playbackCursor * 0.06,
     );
-    slice.scale.setScalar(0.88 + timelineFade * 0.04);
+    slice.scale.setScalar(0.88 + timelineFade * 0.04 + playbackCursor * 0.045);
   });
 
   const frame = Math.round(state.frameFloat) + 1;
