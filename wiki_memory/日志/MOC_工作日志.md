@@ -19,6 +19,7 @@ supersedes: null
 | 2026-08-31 | feature | 播放推进到当前时间切片后，隐藏已经越过当前帧的历史切片；在主界面右侧增加一次点击即可使用的正放、倒放、开头和结尾控制；同步记录每次推送必须回报完整 commit hash 的工程约定。 | archived | playback-controls-and-past-slice-culling | [[日志/2026-08-31-播放控制与前序切片裁切.md|2026-08-31｜播放控制与前序切片裁切]] |
 | 2026-08-31 | ui | 修复卡片全部位于同一平面造成的“拉长斜面”效果，使时间切片成为平行、有间隔、不相交的独立平面序列。 | archived | parallel-depth-time-slice-layout | [[日志/2026-08-31-平行深度切片排列.md|2026-08-31｜平行深度切片排列]] |
 | 2026-08-31 | feature | - | archived | full-animation-safe-framing | [[日志/2026-08-31-全动画安全构图与主体居中.md|全动画安全构图与主体居中]] |
+| 2026-08-31 | feature | - | archived | pitch-range-and-full-timeline-visibility | [[日志/2026-08-31-俯仰范围与完整时间轨迹调整.md|2026-08-31｜俯仰范围与完整时间轨迹调整]] |
 | 2026-08-31 | ui | 让最大缩放达到参考图的主体聚焦距离，并提高俯仰、视角旋转与缩放的响应速度。 | archived | focused-zoom-and-rotation-response | [[日志/2026-08-31-主体聚焦与视角响应调整.md|2026-08-31｜主体聚焦与视角响应调整]] |
 | 2026-08-30 | feature | 建立独立的 Three.js/Vite 3D 时间切片网页，并接入初始杜鹃花模型方案。 | archived | initial-time-slice-experience | [[日志/2026-08-30-项目初始化与杜鹃花时间切片.md|2026-08-30｜项目初始化与杜鹃花时间切片]] |
 | 2026-08-30 | feature | 将时间控制从页面滚动改为长按播放，并让滚轮只负责主体缩放。 | archived | press-play-wheel-zoom | [[日志/2026-08-30-长按播放与滚轮缩放交互.md|2026-08-30｜长按播放与滚轮缩放交互]] |

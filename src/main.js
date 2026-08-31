@@ -7,13 +7,13 @@ const CARD_WIDTH = 2.15;
 const CARD_HEIGHT = 1.72;
 const IMAGE_WIDTH = 1.92;
 const IMAGE_HEIGHT = 1.54;
-const SLICE_DEPTH_STEP = 0.42;
+const SLICE_DEPTH_STEP = 0.62;
 const DRAG_DEADZONE = 8;
 const LONG_PRESS_DELAY = 260;
 const PLAYBACK_FPS = 30;
 const YAW_PER_VIEWPORT = Math.PI * 1.85;
 const PITCH_PER_VIEWPORT = THREE.MathUtils.degToRad(100);
-const PITCH_LIMIT = THREE.MathUtils.degToRad(45);
+const PITCH_LIMIT = THREE.MathUtils.degToRad(90);
 const ROTATION_DRAG_SMOOTHING = 14;
 const ROTATION_RELEASE_SMOOTHING = 8;
 const CAMERA_ZOOM_SMOOTHING = 11;
@@ -412,10 +412,7 @@ function updateSlices(delta, elapsed) {
   sliceRoot.position.y = prefersReducedMotion ? 0 : Math.sin(elapsed * 1.15) * 0.022;
   const reveal = smoothstep(0.025, 0.2, state.spread);
   const sideView = smoothstep(0.2, 0.86, Math.abs(Math.sin(state.yaw)));
-  const currentFrameIndex = Math.floor(state.frameFloat);
-
   slices.forEach((slice, index) => {
-    const isBeforeCurrent = index < currentFrameIndex;
     const offset = index - state.frameFloat;
     const distance = Math.abs(offset);
     const focus = Math.max(0, 1 - distance / 5);
@@ -429,8 +426,10 @@ function updateSlices(delta, elapsed) {
       0.94,
     );
 
-    slice.visible = !isBeforeCurrent;
-    if (isBeforeCurrent) return;
+    // Keep the full timeline in the scene. The current frame remains at the
+    // focus origin, while earlier frames sit toward the camera and later
+    // frames recede behind it along the parallel depth stack.
+    slice.visible = true;
 
     // Each slice is a separate, front-facing parallel plane. The current
     // frame stays at the focus origin while later frames recede along the
