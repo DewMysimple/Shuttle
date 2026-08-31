@@ -7,15 +7,15 @@ const CARD_WIDTH = 2.15;
 const CARD_HEIGHT = 1.72;
 const IMAGE_WIDTH = 1.92;
 const IMAGE_HEIGHT = 1.54;
-const SLICE_DEPTH_STEP = 0.62;
+const SLICE_DEPTH_STEP = 1;
 const DRAG_DEADZONE = 8;
 const LONG_PRESS_DELAY = 260;
 const PLAYBACK_FPS = 30;
-const YAW_PER_VIEWPORT = Math.PI * 1.85;
-const PITCH_PER_VIEWPORT = THREE.MathUtils.degToRad(100);
+const YAW_PER_VIEWPORT = Math.PI * 2.2;
+const PITCH_PER_VIEWPORT = THREE.MathUtils.degToRad(120);
 const PITCH_LIMIT = THREE.MathUtils.degToRad(90);
-const ROTATION_DRAG_SMOOTHING = 14;
-const ROTATION_RELEASE_SMOOTHING = 8;
+const ROTATION_DRAG_SMOOTHING = 18;
+const ROTATION_RELEASE_SMOOTHING = 10;
 const CAMERA_ZOOM_SMOOTHING = 11;
 const CAMERA_ZOOM_SENSITIVITY = 0.011;
 const CAMERA_MIN_DISTANCE = 3;
@@ -411,7 +411,9 @@ function updateSlices(delta, elapsed) {
   state.spread = damp(state.spread, state.spreadTarget, 7, delta);
   sliceRoot.position.y = prefersReducedMotion ? 0 : Math.sin(elapsed * 1.15) * 0.022;
   const reveal = smoothstep(0.025, 0.2, state.spread);
+  const collapseFocus = 1 - smoothstep(0, 0.14, state.spread);
   const sideView = smoothstep(0.2, 0.86, Math.abs(Math.sin(state.yaw)));
+  const currentFrame = Math.round(state.frameFloat);
   slices.forEach((slice, index) => {
     const offset = index - state.frameFloat;
     const distance = Math.abs(offset);
@@ -420,11 +422,19 @@ function updateSlices(delta, elapsed) {
     const activeOpacity = distance < 0.55 ? 0.92 : 0;
     const nearOpacity = distance < 4 ? 0.52 - distance * 0.08 : 0;
     const middleOpacity = distance >= 4 ? 0.16 * Math.exp(-(distance - 4) / 8) : 0;
-    const imageOpacity = reveal * clamp(
+    const timelineOpacity = clamp(
       Math.max(activeOpacity, nearOpacity, middleOpacity + tailOpacity, tailOpacity),
       0,
       0.94,
     );
+    const collapsedImageOpacity = index === currentFrame ? 0.92 : 0;
+    const imageOpacity = clamp(
+      collapseFocus * collapsedImageOpacity + (1 - collapseFocus) * reveal * timelineOpacity,
+      0,
+      0.94,
+    );
+    const collapsedCardOpacity = index === currentFrame ? 0.055 : 0;
+    const collapsedOutlineOpacity = index === currentFrame ? 0.42 : 0;
 
     // Keep the full timeline in the scene. The current frame remains at the
     // focus origin, while earlier frames sit toward the camera and later
@@ -437,8 +447,10 @@ function updateSlices(delta, elapsed) {
     slice.position.set(0, 0, -offset * SLICE_DEPTH_STEP * state.spread);
     slice.rotation.set(0, 0, 0);
 
-    slice.userData.card.material.opacity = reveal * (0.028 + sideView * 0.025 + focus * 0.035);
-    slice.userData.outline.material.opacity = reveal * (0.18 + sideView * 0.05 + focus * 0.22);
+    slice.userData.card.material.opacity = collapseFocus * collapsedCardOpacity
+      + (1 - collapseFocus) * reveal * (0.028 + sideView * 0.025 + focus * 0.035);
+    slice.userData.outline.material.opacity = collapseFocus * collapsedOutlineOpacity
+      + (1 - collapseFocus) * reveal * (0.18 + sideView * 0.05 + focus * 0.22);
     slice.userData.image.material.opacity = imageOpacity;
     const shader = slice.userData.image.material.userData.shader;
     if (shader) {
