@@ -23,8 +23,13 @@ const CAMERA_MAX_DISTANCE = 15.5;
 const FOCUS_GLOW_BASE = 0.074;
 const FOCUS_GLOW_BREATH = 0.018;
 const FOCUS_GLOW_CYCLE = 1.7;
+const FOCUS_TRAIL_COUNT = 5;
+const FOCUS_TRAIL_FRAME_STEP = 3;
+const FOCUS_TRAIL_SPACING = 0.055;
+const PLAYBACK_BLEND_SMOOTHING = 9;
 
 const canvas = document.querySelector('#scene');
+const stage = document.querySelector('.slice-stage');
 const frameCounter = document.querySelector('#frame-counter');
 const stageStatus = document.querySelector('#stage-status');
 const loadingPanel = document.querySelector('#loading-panel');
@@ -103,9 +108,23 @@ rotationRig.add(timeline);
 scene.add(rotationRig);
 
 const slices = [];
+const focusLayer = new THREE.Group();
+const focusTrail = new THREE.Group();
+const focusObjects = {
+  image: null,
+  nextImage: null,
+  glow: null,
+  nextGlow: null,
+};
+const focusTrailPlanes = [];
 let sliceCount = 0;
+let sliceTextures = [];
+let focusReady = false;
+let playbackBlend = 0;
 let lastDisplayedFrame = -1;
 let lastStatus = '';
+
+sliceRoot.add(focusLayer);
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -154,6 +173,7 @@ function setStageStatus(value) {
 }
 
 function syncPlaybackButtons() {
+  stage.classList.toggle('is-playing', state.isPlaying || playbackBlend > 0.02);
   playButtons.forEach((button) => {
     const isActive = state.isPlaying
       && Number(button.dataset.playbackDirection) === state.playbackDirection;
@@ -276,38 +296,14 @@ function updateAtmosphere(elapsed) {
   });
 }
 
-function createSlice(texture, index) {
+function createGradedImageMaterial(texture, opacity = 0) {
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 4);
-
-  const group = new THREE.Group();
-  const cardMaterial = new THREE.MeshBasicMaterial({
-    color: index % 3 === 0 ? 0xffb6bd : index % 3 === 1 ? 0xc8b4f2 : 0xffd38f,
-    transparent: true,
-    opacity: 0,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-    toneMapped: false,
-  });
-  const card = new THREE.Mesh(roundedRectGeometry(CARD_WIDTH, CARD_HEIGHT, 0.1), cardMaterial);
-  card.position.z = -0.06;
-  card.renderOrder = 10;
-
-  const outlineMaterial = new THREE.LineBasicMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0,
-    depthWrite: false,
-    toneMapped: false,
-  });
-  const outline = new THREE.LineSegments(new THREE.EdgesGeometry(card.geometry), outlineMaterial);
-  outline.position.z = -0.03;
-  outline.renderOrder = 12;
 
   const imageMaterial = new THREE.MeshBasicMaterial({
     map: texture,
     transparent: true,
-    opacity: 0,
+    opacity,
     depthWrite: false,
     side: THREE.DoubleSide,
     toneMapped: false,
@@ -335,6 +331,35 @@ void main() {`,
   outgoingLight = mix(outgoingLight, coralLift, sliceWarmth);`,
     );
   };
+  return imageMaterial;
+}
+
+function createSlice(texture, index) {
+  const group = new THREE.Group();
+  const cardMaterial = new THREE.MeshBasicMaterial({
+    color: index % 3 === 0 ? 0xffb6bd : index % 3 === 1 ? 0xc8b4f2 : 0xffd38f,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+  });
+  const card = new THREE.Mesh(roundedRectGeometry(CARD_WIDTH, CARD_HEIGHT, 0.1), cardMaterial);
+  card.position.z = -0.06;
+  card.renderOrder = 10;
+
+  const outlineMaterial = new THREE.LineBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  const outline = new THREE.LineSegments(new THREE.EdgesGeometry(card.geometry), outlineMaterial);
+  outline.position.z = -0.03;
+  outline.renderOrder = 12;
+
+  const imageMaterial = createGradedImageMaterial(texture);
   const image = new THREE.Mesh(new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT), imageMaterial);
   image.position.z = 0.02;
   image.renderOrder = 11;
@@ -358,6 +383,84 @@ void main() {`,
   group.userData = { index, card, glow, outline, image };
   sliceRoot.add(group);
   slices.push(group);
+}
+
+function createFocusLayer() {
+  if (focusReady || sliceTextures.length === 0) return;
+
+  const focusImage = new THREE.Mesh(
+    new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT),
+    createGradedImageMaterial(sliceTextures[0]),
+  );
+  focusImage.position.z = 0.16;
+  focusImage.renderOrder = 42;
+
+  const nextFocusImage = new THREE.Mesh(
+    new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT),
+    createGradedImageMaterial(sliceTextures[0]),
+  );
+  nextFocusImage.position.z = 0.15;
+  nextFocusImage.renderOrder = 41;
+
+  const focusGlow = new THREE.Mesh(
+    new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT),
+    new THREE.MeshBasicMaterial({
+      map: sliceTextures[0],
+      color: 0xff5f70,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+    }),
+  );
+  focusGlow.position.z = 0.1;
+  focusGlow.renderOrder = 40;
+
+  const nextFocusGlow = new THREE.Mesh(
+    new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT),
+    new THREE.MeshBasicMaterial({
+      map: sliceTextures[0],
+      color: 0xff5f70,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+    }),
+  );
+  nextFocusGlow.position.z = 0.09;
+  nextFocusGlow.renderOrder = 39;
+
+  focusTrailPlanes.push(
+    ...Array.from({ length: FOCUS_TRAIL_COUNT }, (_, index) => {
+      const trail = new THREE.Mesh(
+        new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT),
+        new THREE.MeshBasicMaterial({
+          map: sliceTextures[0],
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+          toneMapped: false,
+        }),
+      );
+      trail.position.z = 0.04 - index * 0.004;
+      trail.renderOrder = 30 + index;
+      focusTrail.add(trail);
+      return trail;
+    }),
+  );
+
+  focusObjects.image = focusImage;
+  focusObjects.nextImage = nextFocusImage;
+  focusObjects.glow = focusGlow;
+  focusObjects.nextGlow = nextFocusGlow;
+  focusLayer.add(focusTrail, nextFocusGlow, focusGlow, nextFocusImage, focusImage);
+  focusLayer.visible = true;
+  focusReady = true;
 }
 
 async function loadSlices() {
@@ -386,7 +489,9 @@ async function loadSlices() {
     }),
   );
 
+  sliceTextures = textures;
   textures.forEach(createSlice);
+  createFocusLayer();
 }
 
 function updatePlayback(delta) {
@@ -410,9 +515,8 @@ function updateCamera(delta, elapsed) {
 
   const focusDrift = prefersReducedMotion ? 0 : state.spread;
   cameraFocusPoint.set(
-    Math.sin(elapsed * 0.56 + state.frameFloat * 0.18) * 0.012 * focusDrift,
-    Math.sin(state.frameFloat * 0.33) * 0.03 * state.spread
-      + Math.sin(elapsed * 0.78 + state.frameFloat * 0.24) * 0.028 * focusDrift,
+    Math.sin(elapsed * 0.56) * 0.008 * focusDrift,
+    0.5 + Math.sin(elapsed * 0.78) * 0.018 * focusDrift,
     0,
   );
   sliceRoot.localToWorld(cameraFocusPoint);
@@ -428,69 +532,100 @@ function updateRotation(delta) {
   rotationRig.rotation.x = state.pitch;
 }
 
+function updateGradedMaterial(material, saturation, contrast, warmth) {
+  const shader = material.userData.shader;
+  if (!shader) return;
+  shader.uniforms.sliceSaturation.value = saturation;
+  shader.uniforms.sliceContrast.value = contrast;
+  shader.uniforms.sliceWarmth.value = warmth;
+}
+
+function updateFocus(delta, elapsed) {
+  if (!focusReady || sliceCount < 1) return;
+
+  playbackBlend = damp(
+    playbackBlend,
+    state.isPlaying ? 1 : 0,
+    PLAYBACK_BLEND_SMOOTHING,
+    delta,
+  );
+  stage.classList.toggle('is-playing', state.isPlaying || playbackBlend > 0.02);
+
+  const frameFloat = clamp(state.frameFloat, 0, sliceCount - 1);
+  const currentIndex = Math.floor(frameFloat);
+  const nextIndex = Math.min(currentIndex + 1, sliceCount - 1);
+  const interpolation = frameFloat - currentIndex;
+  const focusSaturation = 1.9;
+  const focusContrast = 1.29;
+  const focusWarmth = 0.28;
+
+  focusObjects.image.material.map = sliceTextures[currentIndex];
+  focusObjects.nextImage.material.map = sliceTextures[nextIndex];
+  focusObjects.glow.material.map = sliceTextures[currentIndex];
+  focusObjects.nextGlow.material.map = sliceTextures[nextIndex];
+
+  focusObjects.image.material.opacity = 0.99 * (1 - interpolation);
+  focusObjects.nextImage.material.opacity = nextIndex === currentIndex ? 0 : 0.99 * interpolation;
+  const glowPulse = prefersReducedMotion
+    ? FOCUS_GLOW_BASE
+    : FOCUS_GLOW_BASE
+      + Math.sin((elapsed / FOCUS_GLOW_CYCLE) * Math.PI * 2) * FOCUS_GLOW_BREATH;
+  focusObjects.glow.material.opacity = glowPulse * (1 - interpolation);
+  focusObjects.nextGlow.material.opacity = nextIndex === currentIndex
+    ? 0
+    : glowPulse * interpolation;
+
+  updateGradedMaterial(focusObjects.image.material, focusSaturation, focusContrast, focusWarmth);
+  updateGradedMaterial(focusObjects.nextImage.material, focusSaturation, focusContrast, focusWarmth);
+  focusObjects.image.scale.setScalar(1.03 + playbackBlend * 0.02);
+  focusObjects.nextImage.scale.setScalar(1.03 + playbackBlend * 0.02);
+  focusObjects.glow.scale.setScalar(1.04 + playbackBlend * 0.025);
+  focusObjects.nextGlow.scale.copy(focusObjects.glow.scale);
+
+  const trailOpacity = [0.11, 0.075, 0.05, 0.032, 0.02];
+  const trailVisibility = prefersReducedMotion ? 0 : playbackBlend;
+  focusTrailPlanes.forEach((trail, index) => {
+    const trailFrame = clamp(
+      Math.round(frameFloat - state.playbackDirection * (index + 1) * FOCUS_TRAIL_FRAME_STEP),
+      0,
+      sliceCount - 1,
+    );
+    trail.material.map = sliceTextures[trailFrame];
+    trail.material.opacity = trailVisibility * trailOpacity[index];
+    trail.position.x = -state.playbackDirection * (index + 1) * FOCUS_TRAIL_SPACING * trailVisibility;
+    trail.position.y = ((index % 2 === 0 ? 1 : -1) * (index + 1) * 0.012) * trailVisibility;
+    trail.scale.setScalar(0.98 - index * 0.028);
+  });
+}
+
 function updateSlices(delta, elapsed) {
   state.spread = damp(state.spread, state.spreadTarget, 7, delta);
   sliceRoot.position.y = prefersReducedMotion ? 0 : Math.sin(elapsed * 1.15) * 0.022;
   const reveal = smoothstep(0.025, 0.2, state.spread);
-  const collapseFocus = 1 - smoothstep(0, 0.14, state.spread);
   const sideView = smoothstep(0.2, 0.86, Math.abs(Math.sin(state.yaw)));
-  const currentFrame = Math.round(state.frameFloat);
+  const timelineCenter = (sliceCount - 1) / 2;
+  const timelineVisibility = reveal * (1 - playbackBlend * 0.78);
   slices.forEach((slice, index) => {
-    const offset = index - state.frameFloat;
-    const distance = Math.abs(offset);
-    const activeWeight = 1 - smoothstep(0, 0.9, distance);
-    const tailOpacity = 0.012 + sideView * 0.018;
-    const nearOpacity = distance < 4 ? 0.2 - distance * 0.045 : 0;
-    const middleOpacity = distance >= 4 ? 0.07 * Math.exp(-(distance - 4) / 7) : 0;
-    const timelineOpacity = clamp(
-      Math.max(activeWeight * 0.99, nearOpacity, middleOpacity + tailOpacity, tailOpacity),
-      0,
-      0.99,
-    );
-    const imageOpacity = clamp(
-      collapseFocus * (index === currentFrame ? 0.99 : 0)
-        + (1 - collapseFocus) * reveal * timelineOpacity,
-      0,
-      0.99,
-    );
-    const collapsedCardOpacity = index === currentFrame ? 0.075 : 0;
-    const collapsedOutlineOpacity = index === currentFrame ? 0.52 : 0;
-    const glowFocus = clamp(
-      collapseFocus * (index === currentFrame ? 1 : 0) + (1 - collapseFocus) * reveal * activeWeight,
-      0,
-      1,
-    );
-    const glowPulse = prefersReducedMotion
-      ? FOCUS_GLOW_BASE
-      : FOCUS_GLOW_BASE + Math.sin((elapsed / FOCUS_GLOW_CYCLE) * Math.PI * 2) * FOCUS_GLOW_BREATH;
+    const distance = Math.abs(index - timelineCenter);
+    const timelineFade = Math.exp(-distance / 15);
 
-    // Keep the full timeline in the scene. The current frame remains at the
-    // focus origin, while earlier frames sit toward the camera and later
-    // frames recede behind it along the parallel depth stack.
     slice.visible = true;
-
-    // Each slice is a separate, front-facing parallel plane. The current
-    // frame stays at the focus origin while later frames recede along the
-    // plane normal, so side views show real gaps instead of a coplanar line.
-    slice.position.set(0, 0, -offset * SLICE_DEPTH_STEP * state.spread);
+    slice.position.set(0, 0, -(index - timelineCenter) * SLICE_DEPTH_STEP * state.spread);
     slice.rotation.set(0, 0, 0);
 
-    slice.userData.card.material.opacity = collapseFocus * collapsedCardOpacity
-      + (1 - collapseFocus) * reveal * (0.014 + sideView * 0.016 + activeWeight * 0.05);
-    slice.userData.outline.material.opacity = collapseFocus * collapsedOutlineOpacity
-      + (1 - collapseFocus) * reveal * (0.1 + sideView * 0.04 + activeWeight * 0.34);
-    slice.userData.image.material.opacity = imageOpacity;
-    slice.userData.glow.material.opacity = glowFocus * glowPulse;
-    slice.userData.glow.scale.setScalar(1.02 + glowFocus * 0.04);
-    const shader = slice.userData.image.material.userData.shader;
-    if (shader) {
-      shader.uniforms.sliceSaturation.value = 1.04 + activeWeight * 0.82 + sideView * 0.04;
-      shader.uniforms.sliceContrast.value = 1.02 + activeWeight * 0.27;
-      shader.uniforms.sliceWarmth.value = activeWeight * 0.28;
-    }
-    slice.scale.setScalar(
-      0.86 + activeWeight * 0.18 * reveal + collapseFocus * (index === currentFrame ? 0.08 : 0),
+    slice.userData.card.material.opacity = timelineVisibility
+      * (0.006 + sideView * 0.01 + timelineFade * 0.016);
+    slice.userData.outline.material.opacity = timelineVisibility
+      * (0.035 + sideView * 0.02 + timelineFade * 0.06);
+    slice.userData.image.material.opacity = timelineVisibility * (0.002 + timelineFade * 0.05);
+    slice.userData.glow.material.opacity = 0;
+    updateGradedMaterial(
+      slice.userData.image.material,
+      1.04 + timelineFade * 0.1,
+      1.02 + timelineFade * 0.08,
+      timelineFade * 0.025,
     );
+    slice.scale.setScalar(0.88 + timelineFade * 0.04);
   });
 
   const frame = Math.round(state.frameFloat) + 1;
@@ -735,6 +870,7 @@ function render() {
   animationTime += delta;
   updatePlayback(delta);
   updateRotation(delta);
+  updateFocus(delta, animationTime);
   updateSlices(delta, animationTime);
   updateCamera(delta, animationTime);
   updateAtmosphere(animationTime);
