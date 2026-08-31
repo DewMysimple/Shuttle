@@ -20,6 +20,9 @@ const CAMERA_ZOOM_SMOOTHING = 11;
 const CAMERA_ZOOM_SENSITIVITY = 0.011;
 const CAMERA_MIN_DISTANCE = 3;
 const CAMERA_MAX_DISTANCE = 15.5;
+const FOCUS_GLOW_BASE = 0.052;
+const FOCUS_GLOW_BREATH = 0.014;
+const FOCUS_GLOW_CYCLE = 1.7;
 
 const canvas = document.querySelector('#scene');
 const frameCounter = document.querySelector('#frame-counter');
@@ -332,9 +335,23 @@ void main() {`,
   image.position.z = 0.02;
   image.renderOrder = 11;
 
-  group.add(card, outline, image);
+  const glowMaterial = new THREE.MeshBasicMaterial({
+    map: texture,
+    color: 0xffb9dc,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+  });
+  const glow = new THREE.Mesh(new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT), glowMaterial);
+  glow.position.z = 0.006;
+  glow.renderOrder = 10.5;
+
+  group.add(card, glow, outline, image);
   group.position.y = 0.08;
-  group.userData = { index, card, outline, image };
+  group.userData = { index, card, glow, outline, image };
   sliceRoot.add(group);
   slices.push(group);
 }
@@ -417,24 +434,31 @@ function updateSlices(delta, elapsed) {
   slices.forEach((slice, index) => {
     const offset = index - state.frameFloat;
     const distance = Math.abs(offset);
-    const focus = Math.max(0, 1 - distance / 5);
-    const tailOpacity = 0.028 + sideView * 0.045;
-    const activeOpacity = distance < 0.55 ? 0.92 : 0;
-    const nearOpacity = distance < 4 ? 0.52 - distance * 0.08 : 0;
-    const middleOpacity = distance >= 4 ? 0.16 * Math.exp(-(distance - 4) / 8) : 0;
+    const activeWeight = 1 - smoothstep(0, 1.25, distance);
+    const tailOpacity = 0.02 + sideView * 0.025;
+    const nearOpacity = distance < 4 ? 0.3 - distance * 0.06 : 0;
+    const middleOpacity = distance >= 4 ? 0.1 * Math.exp(-(distance - 4) / 8) : 0;
     const timelineOpacity = clamp(
-      Math.max(activeOpacity, nearOpacity, middleOpacity + tailOpacity, tailOpacity),
+      Math.max(activeWeight * 0.96, nearOpacity, middleOpacity + tailOpacity, tailOpacity),
       0,
-      0.94,
+      0.96,
     );
-    const collapsedImageOpacity = index === currentFrame ? 0.92 : 0;
     const imageOpacity = clamp(
-      collapseFocus * collapsedImageOpacity + (1 - collapseFocus) * reveal * timelineOpacity,
+      collapseFocus * (index === currentFrame ? 0.96 : 0)
+        + (1 - collapseFocus) * reveal * timelineOpacity,
       0,
-      0.94,
+      0.96,
     );
     const collapsedCardOpacity = index === currentFrame ? 0.055 : 0;
     const collapsedOutlineOpacity = index === currentFrame ? 0.42 : 0;
+    const glowFocus = clamp(
+      collapseFocus * (index === currentFrame ? 1 : 0) + (1 - collapseFocus) * reveal * activeWeight,
+      0,
+      1,
+    );
+    const glowPulse = prefersReducedMotion
+      ? FOCUS_GLOW_BASE
+      : FOCUS_GLOW_BASE + Math.sin((elapsed / FOCUS_GLOW_CYCLE) * Math.PI * 2) * FOCUS_GLOW_BREATH;
 
     // Keep the full timeline in the scene. The current frame remains at the
     // focus origin, while earlier frames sit toward the camera and later
@@ -448,16 +472,18 @@ function updateSlices(delta, elapsed) {
     slice.rotation.set(0, 0, 0);
 
     slice.userData.card.material.opacity = collapseFocus * collapsedCardOpacity
-      + (1 - collapseFocus) * reveal * (0.028 + sideView * 0.025 + focus * 0.035);
+      + (1 - collapseFocus) * reveal * (0.018 + sideView * 0.02 + activeWeight * 0.028);
     slice.userData.outline.material.opacity = collapseFocus * collapsedOutlineOpacity
-      + (1 - collapseFocus) * reveal * (0.18 + sideView * 0.05 + focus * 0.22);
+      + (1 - collapseFocus) * reveal * (0.12 + sideView * 0.045 + activeWeight * 0.2);
     slice.userData.image.material.opacity = imageOpacity;
+    slice.userData.glow.material.opacity = glowFocus * glowPulse;
+    slice.userData.glow.scale.setScalar(1.035 + glowFocus * 0.012);
     const shader = slice.userData.image.material.userData.shader;
     if (shader) {
-      shader.uniforms.sliceSaturation.value = 1.12 + focus * 0.28 + sideView * 0.06;
-      shader.uniforms.sliceContrast.value = 1.05 + focus * 0.1;
+      shader.uniforms.sliceSaturation.value = 0.98 + activeWeight * 0.42 + sideView * 0.03;
+      shader.uniforms.sliceContrast.value = 1.02 + activeWeight * 0.16;
     }
-    slice.scale.setScalar(0.88 + focus * 0.12 * reveal);
+    slice.scale.setScalar(0.88 + activeWeight * 0.12 * reveal);
   });
 
   const frame = Math.round(state.frameFloat) + 1;
