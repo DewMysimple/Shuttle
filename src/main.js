@@ -285,7 +285,7 @@ function updateAtmosphere(elapsed) {
     particleField.material.opacity = 0.17 + Math.sin(elapsed * 0.55) * 0.035;
   });
 
-  atmosphereRings.forEach((ring) => {
+  atmosphereRings.forEach((ring, index) => {
     const { phase, spin } = ring.userData;
     ring.rotation.x += Math.sin(elapsed * 0.23 + phase) * 0.0008;
     ring.rotation.y += spin * 0.002;

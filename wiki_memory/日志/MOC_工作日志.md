@@ -21,6 +21,7 @@ supersedes: null
 | 2026-08-31 | bug | - | archived | maximum-zoom-focus-centering | [[日志/2026-08-31-最大聚焦主体居中修复.md|最大聚焦主体居中修复]] |
 | 2026-08-31 | ui | - | archived | natural-time-slice-playback | [[日志/2026-08-31-时间切片播放自然化.md|时间切片播放自然化]] |
 | 2026-08-31 | feature | 播放推进到当前时间切片后，隐藏已经越过当前帧的历史切片；在主界面右侧增加一次点击即可使用的正放、倒放、开头和结尾控制；同步记录每次推送必须回报完整 commit hash 的工程约定。 | archived | playback-controls-and-past-slice-culling | [[日志/2026-08-31-播放控制与前序切片裁切.md|2026-08-31｜播放控制与前序切片裁切]] |
+| 2026-08-31 | bug | - | archived | playback-glow-runtime-error | [[日志/2026-08-31-播放光晕运行时错误修复.md|播放光晕运行时错误修复]] |
 | 2026-08-31 | ui | - | archived | active-time-slice-focus | [[日志/2026-08-31-当前帧聚焦与微光强化.md|当前帧聚焦与微光强化]] |
 | 2026-08-31 | ui | 修复卡片全部位于同一平面造成的“拉长斜面”效果，使时间切片成为平行、有间隔、不相交的独立平面序列。 | archived | parallel-depth-time-slice-layout | [[日志/2026-08-31-平行深度切片排列.md|2026-08-31｜平行深度切片排列]] |
 | 2026-08-31 | feature | - | archived | full-animation-safe-framing | [[日志/2026-08-31-全动画安全构图与主体居中.md|全动画安全构图与主体居中]] |
