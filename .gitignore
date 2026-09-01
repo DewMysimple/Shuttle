@@ -6,3 +6,7 @@ __pycache__/
 # Runtime assets are intentionally versioned so a fresh clone runs immediately.
 # Blender's old WebP experiments are not used by the site.
 public/assets/slices/*.webp
+
+# Local Blender source and reference videos; runtime assets are exported separately.
+/Source/*
+!/Source/README.md

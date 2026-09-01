@@ -16,6 +16,7 @@ supersedes: null
 | 时间 | 类型 | 目标 | 状态 | 主题 | 日志 |
 | --- | --- | --- | --- | --- | --- |
 | 2026-09-01 | feature | - | archived | butterfly-front-time-slice-sampling | [[日志/2026-09-01-蝴蝶正面时间切片采样.md|蝴蝶正面时间切片采样]] |
+| 2026-09-01 | maintenance | - | archived | source-directory-migration | [[日志/2026-09-01-源素材目录迁移与Source管理.md|源素材目录迁移与 Source 管理]] |
 | 2026-08-31 | ui | - | archived | spacing-view-speed-and-collapse-focus | [[日志/2026-08-31-间距视角速度与收拢基准调整.md|间距、视角速度与收拢基准调整]] |
 | 2026-08-31 | ui | - | archived | playback-depth-glow-balance | [[日志/2026-08-31-纵深光晕与播放层次修复.md|纵深光晕与播放层次修复]] |
 | 2026-08-31 | ui | 把当前 X+Z 时间隧道切片改成正面平行、沿单一水平直线排列，消除斜向、弯曲和 S 形视觉路径。 | archived | straight-line-time-slice-layout | [[日志/2026-08-31-直线时间切片排列.md|2026-08-31｜直线时间切片排列]] |

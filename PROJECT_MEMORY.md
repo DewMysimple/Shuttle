@@ -11,6 +11,7 @@
 - 将网页主体从兰花切换为用户指定的 `BUTTERFLY_FLAP_FAST_FOLLOW_PATH_1.blend`。Blender 场景 `ARTIST_EDIT` 提供 1–91 帧的翅膀拍动和路径动画；网页资源现在是 91 张蝴蝶透明 PNG。
 - 新增 `scripts/export_butterfly_slices.py`：只渲染展示蝴蝶网格，不使用源 `.blend` 原相机、展示台或重复源对象；每帧让临时相机沿动画节点本地 `-X` 正面轴跟随，保证输出保持蝴蝶正面。
 - 更新 `slice-manifest.json`、91 张 PNG、标题和加载文案；将网页图片平面调整为正方形 `1.68 × 1.68`，焦点微光改为蓝色并降低暖色偏移，以保留蝴蝶原始蓝色材质。
+- 将蝴蝶 `.blend` 与两段参考 MP4 统一收纳到项目根目录 `Source/`，通过 `.gitignore` 保持本地源素材管理，网页运行资产仍由 `public/assets/` 提供。
 
 ### 2026-08-31 最近修改
 
@@ -87,9 +88,9 @@
 
 当前实际使用的源文件是：
 
-`C:\Users\Administrator\Desktop\Free\BUTTERFLY_FLAP_FAST_FOLLOW_PATH_1.blend`
+`Source/BUTTERFLY_FLAP_FAST_FOLLOW_PATH_1.blend`
 
-蝴蝶源文件位于本工程目录外，不进入 Git 仓库；源文件原相机不参与网页采样。
+蝴蝶源文件位于本工程的 `Source/`，由 Git 忽略、不进入远端网页仓库；源文件原相机不参与网页采样。
 
 使用 Blender：
 
@@ -105,11 +106,11 @@ Blender 检查结果：
 - 正面采样相机沿动画节点本地 `-X` 轴逐帧跟随，不使用源 `.blend` 原相机
 - 蝴蝶材质和贴图由源 `.blend` 读取后直接渲染为透明 PNG；该过程不会写回源工程
 
-外层素材目录 `C:\Users\Administrator\Desktop\Free\形态1` 还包含原始 FBX、MAX 和贴图，但网页导出不依赖它们。
+旧兰花导出的历史外部素材目录仍包含原始 FBX、MAX 和贴图，但当前蝴蝶网页导出不依赖它们。
 
 ### 参考 MP4
 
-参考视频位于外层目录，约 3444×1936、17 秒、约 515 帧。视频概念上将动作组织为时间切片；本次复盘确认参考片段不是网页滚动播放器，因此只借鉴其主体稳定、连续过渡和残影关系，不把滚动控制接回 `frameFloat`。网页端继续使用固定相机转台响应用户拖拽旋转。
+参考视频位于 `Source/`，约 3444×1936、17 秒、约 515 帧。视频概念上将动作组织为时间切片；本次复盘确认参考片段不是网页滚动播放器，因此只借鉴其主体稳定、连续过渡和残影关系，不把滚动控制接回 `frameFloat`。网页端继续使用固定相机转台响应用户拖拽旋转。
 
 ## 3. 已确定的技术方案
 
@@ -158,7 +159,8 @@ type TimeSliceState = {
 ## 4. 工程结构
 
 ```text
-rhododendron-time-slices/
+Shuttle/
+├─ Source/                             本地 Blender 源文件和参考 MP4（Git 忽略）
 ├─ index.html                         页面结构和作品文案
 ├─ src/
 │  ├─ main.js                         Three.js 场景、动画和交互
@@ -216,7 +218,7 @@ npm run dev
 重新从 Blender 生成运行资产：
 
 ```powershell
-& 'F:\Blender\blender.exe' --background 'C:\Users\Administrator\Desktop\Free\BUTTERFLY_FLAP_FAST_FOLLOW_PATH_1.blend' --python '.\scripts\export_butterfly_slices.py' -- "$PWD\public\assets"
+& 'F:\Blender\blender.exe' --background "$PWD\Source\BUTTERFLY_FLAP_FAST_FOLLOW_PATH_1.blend" --python '.\scripts\export_butterfly_slices.py' -- "$PWD\public\assets"
 ```
 
 生产构建：

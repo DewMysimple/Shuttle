@@ -2,7 +2,7 @@
 
 这是一个独立的 Three.js/Vite 交互作品页。当前时间切片源自：
 
-`C:\Users\Administrator\Desktop\Free\BUTTERFLY_FLAP_FAST_FOLLOW_PATH_1.blend`
+`Source/BUTTERFLY_FLAP_FAST_FOLLOW_PATH_1.blend`
 
 工程记忆：快速交接看 [`wiki_memory/README.md`](./wiki_memory/README.md)，完整历史兼容记录看 [`PROJECT_MEMORY.md`](./PROJECT_MEMORY.md)。结构化记忆的维护协议位于 [`wiki_memory/AGENTS.md`](./wiki_memory/AGENTS.md)。
 
@@ -11,7 +11,7 @@
 在 PowerShell 中执行蝴蝶时间切片导出：
 
 ```powershell
-& 'F:\Blender\blender.exe' --background 'C:\Users\Administrator\Desktop\Free\BUTTERFLY_FLAP_FAST_FOLLOW_PATH_1.blend' --python '.\scripts\export_butterfly_slices.py' -- "$PWD\public\assets"
+& 'F:\Blender\blender.exe' --background "$PWD\Source\BUTTERFLY_FLAP_FAST_FOLLOW_PATH_1.blend" --python '.\scripts\export_butterfly_slices.py' -- "$PWD\public\assets"
 ```
 
 蝴蝶文件的动画范围为 1–91 帧，包含翅膀拍动和沿路径运动。导出脚本只使用带“展示_”前缀的蝴蝶网格，隐藏重复源对象和展示台；它不使用 `.blend` 原相机，而是为每一帧创建一个沿蝴蝶动画节点本地正面轴跟随的临时相机，保持蝴蝶正面并输出 91 张 768×768 RGBA PNG。PNG 中保留每一帧的翅膀姿态，网页再把它们沿 Z 轴排列成时间切片。
@@ -20,7 +20,7 @@
 
 网页运行时先读取 `slice-manifest.json`，再按清单中的数量加载 PNG；因此切片数量不再写死为 76。进入页面后时间切片默认以中等展开状态显示，不会在中央额外立起一个实时模型。
 
-源 `.blend` 只作为离线采样输入，不会被复制进网页仓库。
+源 `.blend` 和参考 MP4 统一放在项目根目录的 `Source/`，只作为离线采样与视觉参考输入；这些文件被 Git 忽略，不会进入远端网页仓库。
 
 ## 启动
 
