@@ -5,8 +5,8 @@ const FRAME_URL = (index) => `/assets/slices/frame-${String(index + 1).padStart(
 const INITIAL_SPREAD = 0.72;
 const CARD_WIDTH = 2.15;
 const CARD_HEIGHT = 1.72;
-const IMAGE_WIDTH = 1.92;
-const IMAGE_HEIGHT = 1.54;
+const IMAGE_WIDTH = 1.68;
+const IMAGE_HEIGHT = 1.68;
 const SLICE_DEPTH_STEP = 1;
 const DRAG_DEADZONE = 8;
 const LONG_PRESS_DELAY = 260;
@@ -375,7 +375,7 @@ function createSlice(texture, index) {
 
   const glowMaterial = new THREE.MeshBasicMaterial({
     map: texture,
-    color: 0xff5f70,
+    color: 0x72b6ff,
     transparent: true,
     opacity: 0,
     depthWrite: false,
@@ -415,7 +415,7 @@ function createFocusLayer() {
     new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT),
     new THREE.MeshBasicMaterial({
       map: sliceTextures[0],
-      color: 0xff5f70,
+      color: 0x72b6ff,
       transparent: true,
       opacity: 0,
       depthWrite: false,
@@ -431,7 +431,7 @@ function createFocusLayer() {
     new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT),
     new THREE.MeshBasicMaterial({
       map: sliceTextures[0],
-      color: 0xff5f70,
+      color: 0x72b6ff,
       transparent: true,
       opacity: 0,
       depthWrite: false,
@@ -566,7 +566,7 @@ function updateFocus(delta, elapsed) {
   const interpolation = frameFloat - currentIndex;
   const focusSaturation = 1.9;
   const focusContrast = 1.29;
-  const focusWarmth = 0.28;
+  const focusWarmth = 0.08;
 
   focusObjects.image.material.map = sliceTextures[currentIndex];
   focusObjects.nextImage.material.map = sliceTextures[nextIndex];
