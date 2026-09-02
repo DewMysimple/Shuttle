@@ -1,27 +1,8 @@
 {
-  "count": 91,
+  "count": 166,
   "sourceFrameStart": 1,
-  "sourceFrameEnd": 91,
-  "animationType": "blender-action-every-frame-static-png",
-  "sampleMode": "every-integer-frame",
-  "view": "fixed-top-front",
-  "cameraType": "orthographic",
-  "cameraDistance": 14,
-  "cameraOrthoScale": 7,
-  "cameraTarget": "display-body-bounds-center",
-  "displayPlane": "xz-horizontal",
-  "timelineAxis": "y",
-  "sourceScene": "ARTIST_EDIT",
-  "sourceFile": "BUTTERFLY_FLAP_FAST_FOLLOW_PATH_1_WING_FLAP_ONLY.blend",
-  "sourceObjects": [
-    "展示_BUTTERFLY_FLAP_FAST_FOLLOW_PATH_1_源_FBX_01_01_BASIC_BUTTERFLY_BODY_Travis_Davids_OBJ_1",
-    "展示_BUTTERFLY_FLAP_FAST_FOLLOW_PATH_1_源_FBX_01_05_BUTTERFLY_FAST__FLAP_FOLLOW_PATH__left_wing_",
-    "展示_BUTTERFLY_FLAP_FAST_FOLLOW_PATH_1_源_FBX_01_06_BUTTERFLY_FAST__FLAP_FOLLOW_PATH__right_wing__Copy_"
-  ],
-  "alphaCleanup": {
-    "coreThreshold": 0.45,
-    "coreDilationPixels": 6
-  },
+  "sourceFrameEnd": 166,
+  "animationType": "alembic-baked-morph-targets",
   "frames": [
     {
       "index": 0,
@@ -386,6 +367,306 @@
     {
       "index": 90,
       "sourceFrame": 91
+    },
+    {
+      "index": 91,
+      "sourceFrame": 92
+    },
+    {
+      "index": 92,
+      "sourceFrame": 93
+    },
+    {
+      "index": 93,
+      "sourceFrame": 94
+    },
+    {
+      "index": 94,
+      "sourceFrame": 95
+    },
+    {
+      "index": 95,
+      "sourceFrame": 96
+    },
+    {
+      "index": 96,
+      "sourceFrame": 97
+    },
+    {
+      "index": 97,
+      "sourceFrame": 98
+    },
+    {
+      "index": 98,
+      "sourceFrame": 99
+    },
+    {
+      "index": 99,
+      "sourceFrame": 100
+    },
+    {
+      "index": 100,
+      "sourceFrame": 101
+    },
+    {
+      "index": 101,
+      "sourceFrame": 102
+    },
+    {
+      "index": 102,
+      "sourceFrame": 103
+    },
+    {
+      "index": 103,
+      "sourceFrame": 104
+    },
+    {
+      "index": 104,
+      "sourceFrame": 105
+    },
+    {
+      "index": 105,
+      "sourceFrame": 106
+    },
+    {
+      "index": 106,
+      "sourceFrame": 107
+    },
+    {
+      "index": 107,
+      "sourceFrame": 108
+    },
+    {
+      "index": 108,
+      "sourceFrame": 109
+    },
+    {
+      "index": 109,
+      "sourceFrame": 110
+    },
+    {
+      "index": 110,
+      "sourceFrame": 111
+    },
+    {
+      "index": 111,
+      "sourceFrame": 112
+    },
+    {
+      "index": 112,
+      "sourceFrame": 113
+    },
+    {
+      "index": 113,
+      "sourceFrame": 114
+    },
+    {
+      "index": 114,
+      "sourceFrame": 115
+    },
+    {
+      "index": 115,
+      "sourceFrame": 116
+    },
+    {
+      "index": 116,
+      "sourceFrame": 117
+    },
+    {
+      "index": 117,
+      "sourceFrame": 118
+    },
+    {
+      "index": 118,
+      "sourceFrame": 119
+    },
+    {
+      "index": 119,
+      "sourceFrame": 120
+    },
+    {
+      "index": 120,
+      "sourceFrame": 121
+    },
+    {
+      "index": 121,
+      "sourceFrame": 122
+    },
+    {
+      "index": 122,
+      "sourceFrame": 123
+    },
+    {
+      "index": 123,
+      "sourceFrame": 124
+    },
+    {
+      "index": 124,
+      "sourceFrame": 125
+    },
+    {
+      "index": 125,
+      "sourceFrame": 126
+    },
+    {
+      "index": 126,
+      "sourceFrame": 127
+    },
+    {
+      "index": 127,
+      "sourceFrame": 128
+    },
+    {
+      "index": 128,
+      "sourceFrame": 129
+    },
+    {
+      "index": 129,
+      "sourceFrame": 130
+    },
+    {
+      "index": 130,
+      "sourceFrame": 131
+    },
+    {
+      "index": 131,
+      "sourceFrame": 132
+    },
+    {
+      "index": 132,
+      "sourceFrame": 133
+    },
+    {
+      "index": 133,
+      "sourceFrame": 134
+    },
+    {
+      "index": 134,
+      "sourceFrame": 135
+    },
+    {
+      "index": 135,
+      "sourceFrame": 136
+    },
+    {
+      "index": 136,
+      "sourceFrame": 137
+    },
+    {
+      "index": 137,
+      "sourceFrame": 138
+    },
+    {
+      "index": 138,
+      "sourceFrame": 139
+    },
+    {
+      "index": 139,
+      "sourceFrame": 140
+    },
+    {
+      "index": 140,
+      "sourceFrame": 141
+    },
+    {
+      "index": 141,
+      "sourceFrame": 142
+    },
+    {
+      "index": 142,
+      "sourceFrame": 143
+    },
+    {
+      "index": 143,
+      "sourceFrame": 144
+    },
+    {
+      "index": 144,
+      "sourceFrame": 145
+    },
+    {
+      "index": 145,
+      "sourceFrame": 146
+    },
+    {
+      "index": 146,
+      "sourceFrame": 147
+    },
+    {
+      "index": 147,
+      "sourceFrame": 148
+    },
+    {
+      "index": 148,
+      "sourceFrame": 149
+    },
+    {
+      "index": 149,
+      "sourceFrame": 150
+    },
+    {
+      "index": 150,
+      "sourceFrame": 151
+    },
+    {
+      "index": 151,
+      "sourceFrame": 152
+    },
+    {
+      "index": 152,
+      "sourceFrame": 153
+    },
+    {
+      "index": 153,
+      "sourceFrame": 154
+    },
+    {
+      "index": 154,
+      "sourceFrame": 155
+    },
+    {
+      "index": 155,
+      "sourceFrame": 156
+    },
+    {
+      "index": 156,
+      "sourceFrame": 157
+    },
+    {
+      "index": 157,
+      "sourceFrame": 158
+    },
+    {
+      "index": 158,
+      "sourceFrame": 159
+    },
+    {
+      "index": 159,
+      "sourceFrame": 160
+    },
+    {
+      "index": 160,
+      "sourceFrame": 161
+    },
+    {
+      "index": 161,
+      "sourceFrame": 162
+    },
+    {
+      "index": 162,
+      "sourceFrame": 163
+    },
+    {
+      "index": 163,
+      "sourceFrame": 164
+    },
+    {
+      "index": 164,
+      "sourceFrame": 165
+    },
+    {
+      "index": 165,
+      "sourceFrame": 166
     }
   ]
 }

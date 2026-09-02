@@ -3,90 +3,65 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f4d8cf" />
-    <title>蝴蝶时间切片</title>
+    <meta name="theme-color" content="#f8e7de" />
+    <title>兰花 · 3D 时间切片</title>
   </head>
   <body>
     <main class="single-interface">
-      <section id="time-slices" class="slice-section" aria-label="蝴蝶真实逐帧时间切片">
+      <section id="time-slices" class="slice-section" aria-label="兰花三维时间切片">
         <div class="slice-stage">
-          <header class="stage-header">
-            <div class="stage-title">
-              <p class="kicker">91 moments in flight</p>
-              <h1>蝴蝶 / 时间切片</h1>
+          <div class="stage-header">
+            <div>
+              <p class="kicker">Interactive 3D time slice</p>
+              <p class="stage-header__title">兰花 / 时间切片</p>
             </div>
-            <div class="stage-header__meta" aria-live="polite">
-              <span id="frame-counter">FRAME 001 / 091</span>
+            <div class="stage-header__meta">
+              <span id="frame-counter">FRAME 001 / —</span>
               <span id="stage-status">准备载入</span>
             </div>
-          </header>
+          </div>
 
-          <canvas
-            id="scene"
-            tabindex="0"
-            aria-label="蝴蝶三维时间切片视口。像 Blender 一样使用中键旋转、Shift 加中键平移、滚轮缩放；也可左键旋转、右键平移。Alt 加滚轮逐帧穿梭，Alt 加左键径向拖拽调整层距。"
-          ></canvas>
-
-          <nav class="viewport-controls" aria-label="三维视图预设">
-            <span class="viewport-controls__label">3D viewport</span>
-            <div class="viewport-controls__grid">
-              <button type="button" data-view-preset="perspective" aria-pressed="true">透视</button>
-              <button type="button" data-view-preset="front" aria-pressed="false">前</button>
-              <button type="button" data-view-preset="side" aria-pressed="false">侧</button>
-              <button type="button" data-view-preset="frame" aria-pressed="false">当前帧</button>
-            </div>
-            <p><kbd>MMB</kbd> 旋转 · <kbd>Shift</kbd> + <kbd>MMB</kbd> 平移 · 滚轮缩放</p>
-          </nav>
+          <canvas id="scene" tabindex="0" aria-label="时间切片三维场景，左键长按正向播放，右键长按倒放，拖拽旋转视角，滚轮缩放"></canvas>
 
           <div class="loading-panel" id="loading-panel" role="status" aria-live="polite">
             <div class="loading-panel__topline">
-              <span>正在排列真实时间切片</span>
+              <span>正在准备花的时间轴</span>
               <span id="loading-percent">0%</span>
             </div>
             <div class="loading-bar"><span id="loading-bar-fill"></span></div>
-            <p id="loading-detail">读取 91 个逐帧姿态</p>
+            <p id="loading-detail">读取完整动画帧清单</p>
           </div>
 
-          <nav class="playback-controls" aria-label="时间穿梭控制">
+          <nav class="playback-controls" aria-label="时间切片播放控制">
             <button
               class="playback-button"
               id="play-forward"
               type="button"
               data-playback-direction="1"
               aria-pressed="false"
-              aria-label="沿时间轨道向后穿梭，再次点击暂停"
-            >正向</button>
+              aria-label="正向播放，再次点击暂停"
+            >正放</button>
             <button
               class="playback-button"
               id="play-reverse"
               type="button"
               data-playback-direction="-1"
               aria-pressed="false"
-              aria-label="沿时间轨道向前穿梭，再次点击暂停"
-            >反向</button>
-            <span class="control-rule" aria-hidden="true"></span>
-            <button class="playback-button playback-button--quiet" id="jump-start" type="button" aria-label="穿梭到首帧">01</button>
-            <button class="playback-button playback-button--quiet" id="jump-end" type="button" aria-label="穿梭到尾帧">91</button>
-            <span class="control-rule" aria-hidden="true"></span>
-            <button class="playback-button playback-button--quiet" id="reset-view" type="button" aria-label="框显全部时间切片">全景</button>
+              aria-label="倒放，再次点击暂停"
+            >倒放</button>
+            <button class="playback-button" id="jump-start" type="button" aria-label="跳到首帧">开头</button>
+            <button class="playback-button" id="jump-end" type="button" aria-label="跳到尾帧">结尾</button>
           </nav>
 
-          <footer class="stage-footer">
+          <div class="stage-footer">
             <div class="stage-footer__instruction">
-              <span class="gesture-icon" aria-hidden="true"><i></i></span>
-              <span>Blender 导航：中键旋转・Shift + 中键平移・滚轮缩放</span>
-              <span class="instruction-separator">/</span>
-              <span>Alt + 滚轮逐帧穿梭</span>
-              <span class="instruction-separator">/</span>
-              <span>Alt + 左键径向拖拽层距</span>
+              <span class="gesture-icon" aria-hidden="true">◎</span>
+              <span>Hold LMB forward · RMB reverse · drag rotate</span>
             </div>
             <button class="expand-button" id="expand-button" type="button" aria-pressed="false">
-              展开 91 帧
+              展开切片
             </button>
-          </footer>
-
-          <div class="timeline-readout" aria-hidden="true">
-            <span id="timeline-progress"></span>
+            <span>LMB + / RMB − / drag / wheel</span>
           </div>
         </div>
       </section>

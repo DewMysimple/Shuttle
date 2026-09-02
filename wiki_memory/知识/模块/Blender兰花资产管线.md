@@ -1,6 +1,6 @@
 ---
 type: knowledge
-status: archived
+status: active
 kind: module
 importance: high
 updated: 2026-08-31

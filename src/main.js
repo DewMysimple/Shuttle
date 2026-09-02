@@ -1,17 +1,37 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import './style.css';
 
 const FRAME_URL = (index) => `/assets/slices/frame-${String(index + 1).padStart(3, '0')}.png`;
-const COLLAPSED_STEP = 0.018;
-const EXPANDED_STEP = 0.32;
-const IMAGE_SIZE = 3;
-const CARD_SIZE = 3.16;
-const PLAYBACK_FPS = 18;
-const SHUTTLE_SMOOTHING = 18;
-const SPREAD_SMOOTHING = 8;
-const CAMERA_TRANSITION_SMOOTHING = 10;
-const VIEW_PADDING = 1.18;
+const INITIAL_SPREAD = 0.72;
+const CARD_WIDTH = 2.15;
+const CARD_HEIGHT = 1.72;
+const IMAGE_WIDTH = 1.92;
+const IMAGE_HEIGHT = 1.54;
+const SLICE_DEPTH_STEP = 1;
+const DRAG_DEADZONE = 8;
+const LONG_PRESS_DELAY = 260;
+const PLAYBACK_FPS = 30;
+const YAW_PER_VIEWPORT = Math.PI * 2.2;
+const PITCH_PER_VIEWPORT = THREE.MathUtils.degToRad(120);
+const PITCH_LIMIT = THREE.MathUtils.degToRad(90);
+const ROTATION_DRAG_SMOOTHING = 18;
+const ROTATION_RELEASE_SMOOTHING = 10;
+const CAMERA_ZOOM_SMOOTHING = 11;
+const CAMERA_ZOOM_SENSITIVITY = 0.011;
+const CAMERA_MIN_DISTANCE = 3;
+const CAMERA_MAX_DISTANCE = 15.5;
+const CAMERA_FOCUS_Y = 0.04;
+const CAMERA_EYE_HEIGHT_OFFSET = 0.75;
+const FOCUS_GLOW_BASE = 0.108;
+const FOCUS_GLOW_BREATH = 0.024;
+const FOCUS_GLOW_CYCLE = 1.7;
+const FOCUS_TRAIL_COUNT = 5;
+const FOCUS_TRAIL_FRAME_STEP = 3;
+const FOCUS_TRAIL_SPACING = 0.09;
+const FOCUS_TRAIL_DEPTH_STEP = 0.085;
+const PLAYBACK_CURSOR_DECAY = 4.5;
+const PLAYBACK_CURSOR_CORE_DECAY = 1.35;
+const PLAYBACK_BLEND_SMOOTHING = 9;
 
 const canvas = document.querySelector('#scene');
 const stage = document.querySelector('.slice-stage');
@@ -22,44 +42,51 @@ const loadingPercent = document.querySelector('#loading-percent');
 const loadingBarFill = document.querySelector('#loading-bar-fill');
 const loadingDetail = document.querySelector('#loading-detail');
 const expandButton = document.querySelector('#expand-button');
-const timelineProgress = document.querySelector('#timeline-progress');
 const playButtons = [...document.querySelectorAll('[data-playback-direction]')];
 const jumpStartButton = document.querySelector('#jump-start');
 const jumpEndButton = document.querySelector('#jump-end');
-const resetViewButton = document.querySelector('#reset-view');
-const viewportButtons = [...document.querySelectorAll('[data-view-preset]')];
-
-const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const isSmallViewport = window.matchMedia('(max-width: 760px)').matches;
-const clock = new THREE.Clock();
 
 const state = {
-  shuttle: 0,
-  shuttleTarget: 0,
-  spread: 1,
-  spreadTarget: 1,
+  frameFloat: 0,
+  spread: INITIAL_SPREAD,
+  spreadTarget: INITIAL_SPREAD,
+  yaw: 0,
+  yawTarget: 0,
+  pitch: 0.08,
+  pitchTarget: 0.08,
+  isDragging: false,
   isPlaying: false,
   playbackDirection: 1,
 };
 
+const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const isSmallViewport = window.matchMedia('(max-width: 700px)').matches;
+const clock = new THREE.Clock();
+let animationTime = 0;
 const pointer = {
   active: false,
-  id: null,
   startX: 0,
   startY: 0,
-  startRadius: 0,
-  startSpread: 0,
+  currentX: 0,
+  currentY: 0,
+  lastX: 0,
+  lastY: 0,
+  moved: false,
+  longPressReady: false,
+  longPressTimer: 0,
 };
 
-let sliceCount = 0;
-let slices = [];
-let playbackAccumulator = 0;
-let lastDisplayedFrame = -1;
-let lastStatus = '';
-let lastWheelStepAt = 0;
-
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(31, 1, 0.08, 400);
+const camera = new THREE.PerspectiveCamera(33, 1, 0.1, 100);
+const defaultCameraDistance = isSmallViewport ? 10.2 : 8.7;
+const cameraZoom = {
+  current: defaultCameraDistance,
+  target: defaultCameraDistance,
+};
+const cameraFocusPoint = new THREE.Vector3(0, CAMERA_FOCUS_Y, 0);
+camera.position.set(0, CAMERA_FOCUS_Y + CAMERA_EYE_HEIGHT_OFFSET, defaultCameraDistance);
+camera.lookAt(0, CAMERA_FOCUS_Y, 0);
+
 const renderer = new THREE.WebGLRenderer({
   canvas,
   alpha: true,
@@ -68,40 +95,41 @@ const renderer = new THREE.WebGLRenderer({
 });
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.08;
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, isSmallViewport ? 1.3 : 1.8));
+renderer.toneMappingExposure = 1.15;
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, isSmallViewport ? 1.25 : 1.8));
 
-const controls = new OrbitControls(camera, canvas);
-controls.enableDamping = !prefersReducedMotion;
-controls.dampingFactor = 0.085;
-controls.enablePan = true;
-controls.enableZoom = true;
-controls.screenSpacePanning = true;
-controls.zoomToCursor = true;
-controls.minDistance = 1.8;
-controls.maxDistance = 180;
-controls.minPolarAngle = 0.02;
-controls.maxPolarAngle = Math.PI - 0.02;
-controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
-controls.mouseButtons.MIDDLE = THREE.MOUSE.ROTATE;
-controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
-camera.up.set(0, 1, 0);
-
-let nativeControlActive = false;
-let focusMode = 'volume';
-let activeViewPreset = 'perspective';
-let trackedPivotY = 0;
-let cameraTransition = null;
-const cameraDirection = new THREE.Vector3();
-
-const timelineRoot = new THREE.Group();
 const atmosphereRoot = new THREE.Group();
-scene.add(atmosphereRoot, timelineRoot);
+const atmosphereParticles = [];
+const atmosphereRings = [];
+const atmosphereHalos = [];
+scene.add(atmosphereRoot);
 
-const atmosphereItems = [];
-let rail = null;
-let railTicks = null;
-let spatialGrid = null;
+const timeline = new THREE.Group();
+const sliceRoot = new THREE.Group();
+sliceRoot.scale.setScalar(isSmallViewport ? 0.78 : 1);
+timeline.add(sliceRoot);
+const rotationRig = new THREE.Group();
+rotationRig.add(timeline);
+scene.add(rotationRig);
+
+const slices = [];
+const focusLayer = new THREE.Group();
+const focusTrail = new THREE.Group();
+const focusObjects = {
+  image: null,
+  nextImage: null,
+  glow: null,
+  nextGlow: null,
+};
+const focusTrailPlanes = [];
+let sliceCount = 0;
+let sliceTextures = [];
+let focusReady = false;
+let playbackBlend = 0;
+let lastDisplayedFrame = -1;
+let lastStatus = '';
+
+sliceRoot.add(focusLayer);
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -117,15 +145,12 @@ function damp(current, target, smoothing, delta) {
   return THREE.MathUtils.damp(current, target, smoothing, delta);
 }
 
-function currentStep() {
-  return THREE.MathUtils.lerp(COLLAPSED_STEP, EXPANDED_STEP, smoothstep(0, 1, state.spread));
-}
-
 function roundedRectGeometry(width, height, radius) {
   const shape = new THREE.Shape();
   const x = -width / 2;
   const y = -height / 2;
   const r = Math.min(radius, width / 2, height / 2);
+
   shape.moveTo(x + r, y);
   shape.lineTo(x + width - r, y);
   shape.quadraticCurveTo(x + width, y, x + width, y + r);
@@ -135,15 +160,8 @@ function roundedRectGeometry(width, height, radius) {
   shape.quadraticCurveTo(x, y + height, x, y + height - r);
   shape.lineTo(x, y + r);
   shape.quadraticCurveTo(x, y, x + r, y);
-  return new THREE.ShapeGeometry(shape);
-}
 
-function seededRandom(seed) {
-  let value = seed >>> 0;
-  return () => {
-    value = (value * 1664525 + 1013904223) >>> 0;
-    return value / 4294967296;
-  };
+  return new THREE.ShapeGeometry(shape);
 }
 
 function setLoading(progress, detail) {
@@ -159,28 +177,8 @@ function setStageStatus(value) {
   stageStatus.textContent = value;
 }
 
-function syncViewportButtons() {
-  viewportButtons.forEach((button) => {
-    const isActive = button.dataset.viewPreset === activeViewPreset;
-    button.classList.toggle('is-active', isActive);
-    button.setAttribute('aria-pressed', String(isActive));
-  });
-}
-
-controls.addEventListener('start', () => {
-  cameraTransition = null;
-  activeViewPreset = null;
-  syncViewportButtons();
-  nativeControlActive = true;
-  stage.classList.add('is-orbiting');
-});
-
-controls.addEventListener('end', () => {
-  nativeControlActive = false;
-  stage.classList.remove('is-orbiting');
-});
-
 function syncPlaybackButtons() {
+  stage.classList.toggle('is-playing', state.isPlaying || playbackBlend > 0.02);
   playButtons.forEach((button) => {
     const isActive = state.isPlaying
       && Number(button.dataset.playbackDirection) === state.playbackDirection;
@@ -189,50 +187,63 @@ function syncPlaybackButtons() {
   });
 }
 
-function syncExpandButton() {
-  const expanded = state.spreadTarget >= 0.5;
-  stage.classList.toggle('is-expanded', expanded);
-  expandButton.setAttribute('aria-pressed', String(expanded));
-  expandButton.textContent = expanded ? '收拢时间轴' : '展开 91 帧';
-}
-
-function toggleSpread() {
-  state.spreadTarget = state.spreadTarget >= 0.5 ? 0 : 1;
-  syncExpandButton();
-  if (activeViewPreset && activeViewPreset !== 'frame') {
-    setCameraPreset(activeViewPreset);
-  }
-}
-
 function createAtmosphere() {
-  const random = seededRandom(76091);
-  const count = isSmallViewport ? 42 : 76;
-  const positions = new Float32Array(count * 3);
-  for (let index = 0; index < count; index += 1) {
-    positions[index * 3] = random() * 18 - 4;
-    positions[index * 3 + 1] = random() * 8 - 4;
-    positions[index * 3 + 2] = random() * 5 - 3;
+  const particleCount = isSmallViewport ? 28 : 64;
+  const positions = new Float32Array(particleCount * 3);
+  const seeds = new Float32Array(particleCount);
+
+  for (let index = 0; index < particleCount; index += 1) {
+    const offset = index * 3;
+    positions[offset] = (Math.random() - 0.5) * 9;
+    positions[offset + 1] = Math.random() * 5 - 1.4;
+    positions[offset + 2] = (Math.random() - 0.5) * 3.4 - 0.7;
+    seeds[index] = Math.random() * Math.PI * 2;
   }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  const points = new THREE.Points(
-    geometry,
-    new THREE.PointsMaterial({
-      color: 0xfff0dd,
-      size: isSmallViewport ? 0.035 : 0.052,
-      transparent: true,
-      opacity: 0.3,
-      depthWrite: false,
-      sizeAttenuation: true,
-    }),
-  );
-  points.userData.phase = 0.4;
-  atmosphereRoot.add(points);
-  atmosphereItems.push(points);
+
+  const particleGeometry = new THREE.BufferGeometry();
+  particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const particleMaterial = new THREE.PointsMaterial({
+    color: 0xfff0d4,
+    size: isSmallViewport ? 0.055 : 0.075,
+    transparent: true,
+    opacity: 0.22,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    sizeAttenuation: true,
+  });
+  const particleField = new THREE.Points(particleGeometry, particleMaterial);
+  particleField.userData = {
+    basePositions: positions.slice(),
+    seeds,
+  };
+  atmosphereRoot.add(particleField);
+  atmosphereParticles.push(particleField);
 
   [
-    { x: -1.3, y: 1.4, size: 2.7, color: 0xffd1ca, opacity: 0.055 },
-    { x: 5.8, y: -1.25, size: 3.5, color: 0xd3c0ef, opacity: 0.045 },
+    { radius: 1.9, color: 0xffc7de, opacity: 0.14, spin: 0.09, tilt: 0.24 },
+    { radius: 2.65, color: 0xd6c6ff, opacity: 0.1, spin: -0.065, tilt: -0.32 },
+    { radius: 3.35, color: 0xffe4b4, opacity: 0.075, spin: 0.045, tilt: 0.52 },
+  ].forEach((config, index) => {
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(config.radius, isSmallViewport ? 0.008 : 0.014, 8, 128),
+      new THREE.MeshBasicMaterial({
+        color: config.color,
+        transparent: true,
+        opacity: config.opacity,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    );
+    ring.position.set(0, 0.48 + index * 0.08, -0.85);
+    ring.rotation.set(config.tilt, index * 0.55, index * 0.3);
+    ring.userData = { phase: index * 1.8, spin: config.spin, baseScale: 1 };
+    atmosphereRoot.add(ring);
+    atmosphereRings.push(ring);
+  });
+
+  [
+    { size: 2.6, color: 0xffd2c3, opacity: 0.04 },
+    { size: 4.4, color: 0xd9c2f0, opacity: 0.028 },
   ].forEach((config, index) => {
     const halo = new THREE.Mesh(
       new THREE.CircleGeometry(config.size, 64),
@@ -241,580 +252,651 @@ function createAtmosphere() {
         transparent: true,
         opacity: config.opacity,
         depthWrite: false,
-        depthTest: false,
+        side: THREE.DoubleSide,
         blending: THREE.AdditiveBlending,
       }),
     );
-    halo.position.set(config.x, config.y, -2.8 - index * 0.2);
-    halo.userData.phase = index * 1.7;
+    halo.position.set(0, 0.42, -1.1 - index * 0.12);
+    halo.userData = { phase: index * 1.6, baseScale: 1 };
     atmosphereRoot.add(halo);
-    atmosphereItems.push(halo);
+    atmosphereHalos.push(halo);
   });
-}
-
-function createRail() {
-  rail = new THREE.Mesh(
-    new THREE.BoxGeometry(1, 0.008, 0.008),
-    new THREE.MeshBasicMaterial({
-      color: 0x67475f,
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-      depthTest: true,
-    }),
-  );
-  rail.position.x = -CARD_SIZE * 0.62;
-  rail.rotation.z = Math.PI / 2;
-  rail.renderOrder = 1;
-  timelineRoot.add(rail);
-
-  railTicks = new THREE.Group();
-  const tickGeometry = new THREE.BoxGeometry(0.105, 0.008, 0.008);
-  for (let index = 0; index < 19; index += 1) {
-    const tick = new THREE.Mesh(
-      tickGeometry,
-      new THREE.MeshBasicMaterial({
-        color: 0x67475f,
-        transparent: true,
-        opacity: 0,
-        depthWrite: false,
-        depthTest: true,
-      }),
-    );
-    tick.userData.frameIndex = Math.min(index * 5, 90);
-    railTicks.add(tick);
-  }
-  timelineRoot.add(railTicks);
-}
-
-function createSpatialGrid() {
-  spatialGrid = new THREE.GridHelper(42, 42, 0x694b61, 0x9a778d);
-  spatialGrid.position.y = -0.09;
-  spatialGrid.material.transparent = true;
-  spatialGrid.material.opacity = 0;
-  spatialGrid.material.depthWrite = false;
-  spatialGrid.material.toneMapped = false;
-  scene.add(spatialGrid);
-}
-
-function configureTexture(texture) {
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.minFilter = THREE.LinearMipmapLinearFilter;
-  texture.magFilter = THREE.LinearFilter;
-  texture.generateMipmaps = true;
-  texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-  texture.needsUpdate = true;
-  return texture;
-}
-
-function getTimelineMetrics() {
-  const step = currentStep();
-  const railLength = Math.max(0.001, (sliceCount - 1) * step);
-  const scale = THREE.MathUtils.lerp(1, 1.65, smoothstep(0.46, 0.94, state.spread));
-  return {
-    step,
-    railLength,
-    midpoint: railLength / 2,
-    planeSize: CARD_SIZE * scale,
-  };
-}
-
-function getMinimumFov() {
-  const vertical = THREE.MathUtils.degToRad(camera.fov);
-  const horizontal = 2 * Math.atan(Math.tan(vertical / 2) * camera.aspect);
-  return Math.min(vertical, horizontal);
-}
-
-function fitVolumeDistance(metrics) {
-  const radius = Math.hypot(metrics.planeSize, metrics.railLength, metrics.planeSize) / 2;
-  return (radius / Math.sin(getMinimumFov() / 2)) * VIEW_PADDING;
-}
-
-function fitPlaneDistance(width, height, depth = 0) {
-  const vertical = THREE.MathUtils.degToRad(camera.fov);
-  const horizontal = 2 * Math.atan(Math.tan(vertical / 2) * camera.aspect);
-  return Math.max(
-    width / 2 / Math.tan(horizontal / 2),
-    height / 2 / Math.tan(vertical / 2),
-  ) * VIEW_PADDING + depth / 2;
-}
-
-function getPresetCamera(preset) {
-  const metrics = getTimelineMetrics();
-  const volumeTarget = new THREE.Vector3(0, metrics.midpoint, 0);
-  const selectedTarget = new THREE.Vector3(0, state.shuttle * metrics.step, 0);
-  let target = volumeTarget;
-  let direction = new THREE.Vector3(0.82, 0.48, 1);
-  let distance = fitVolumeDistance(metrics);
-
-  if (preset === 'front') {
-    direction.set(0, 0, 1);
-    distance = fitPlaneDistance(metrics.planeSize, metrics.railLength + metrics.planeSize * 0.12, metrics.planeSize);
-  } else if (preset === 'side') {
-    direction.set(1, 0, 0);
-    distance = fitPlaneDistance(metrics.planeSize, metrics.railLength + metrics.planeSize * 0.12, metrics.planeSize);
-  } else if (preset === 'frame') {
-    target = selectedTarget;
-    direction.set(0, 0.9996, 0.028);
-    distance = fitPlaneDistance(metrics.planeSize, metrics.planeSize);
-  }
-
-  direction.normalize();
-  return {
-    target,
-    position: target.clone().addScaledVector(direction, distance),
-  };
-}
-
-function setCameraPreset(preset, immediate = false) {
-  if (!sliceCount) return;
-  const destination = getPresetCamera(preset);
-  focusMode = preset === 'frame' ? 'frame' : 'volume';
-  activeViewPreset = preset;
-  trackedPivotY = destination.target.y;
-  nativeControlActive = false;
-  stage.classList.remove('is-orbiting');
-  syncViewportButtons();
-
-  if (immediate || prefersReducedMotion) {
-    camera.position.copy(destination.position);
-    controls.target.copy(destination.target);
-    cameraTransition = null;
-    controls.update();
-    return;
-  }
-
-  cameraTransition = { preset };
-}
-
-function updateCameraTransition(delta) {
-  if (!cameraTransition) return;
-  const destination = getPresetCamera(cameraTransition.preset);
-  const blend = 1 - Math.exp(-CAMERA_TRANSITION_SMOOTHING * delta);
-  camera.position.lerp(destination.position, blend);
-  controls.target.lerp(destination.target, blend);
-  controls.update();
-  if (
-    camera.position.distanceToSquared(destination.position) < 0.0001
-    && controls.target.distanceToSquared(destination.target) < 0.0001
-    && Math.abs(state.spread - state.spreadTarget) < 0.0001
-  ) {
-    camera.position.copy(destination.position);
-    controls.target.copy(destination.target);
-    cameraTransition = null;
-    controls.update();
-  }
-}
-
-function resetCameraView() {
-  setCameraPreset('perspective');
-}
-
-async function loadTextures(count) {
-  const loader = new THREE.TextureLoader();
-  const textures = new Array(count);
-  const batchSize = isSmallViewport ? 5 : 9;
-  let loaded = 0;
-  for (let start = 0; start < count; start += batchSize) {
-    const end = Math.min(start + batchSize, count);
-    await Promise.all(
-      Array.from({ length: end - start }, (_, offset) => {
-        const index = start + offset;
-        return loader.loadAsync(FRAME_URL(index)).then((texture) => {
-          textures[index] = configureTexture(texture);
-          loaded += 1;
-          setLoading(0.08 + (loaded / count) * 0.84, `载入逐帧姿态 ${loaded} / ${count}`);
-        });
-      }),
-    );
-  }
-  return textures;
-}
-
-function createSlices(textures) {
-  const imageGeometry = new THREE.PlaneGeometry(IMAGE_SIZE, IMAGE_SIZE);
-  const cardShape = roundedRectGeometry(CARD_SIZE, CARD_SIZE, 0.2);
-  const cardEdgeGeometry = new THREE.EdgesGeometry(cardShape);
-
-  slices = textures.map((texture, index) => {
-    const root = new THREE.Group();
-    root.rotation.x = -Math.PI / 2;
-    const cardMaterial = new THREE.MeshBasicMaterial({
-      color: index % 2 ? 0xf7dfdb : 0xeadcf0,
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-      depthTest: true,
-      side: THREE.DoubleSide,
-    });
-    const edgeMaterial = new THREE.LineBasicMaterial({
-      color: index % 3 === 0 ? 0x9d6388 : 0x745b80,
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-      depthTest: true,
-    });
-    const imageMaterial = new THREE.MeshBasicMaterial({
-      map: texture,
-      transparent: true,
-      opacity: 0,
-      alphaTest: 0.012,
-      depthWrite: false,
-      depthTest: true,
-      side: THREE.DoubleSide,
-      toneMapped: false,
-    });
-
-    const card = new THREE.Mesh(cardShape, cardMaterial);
-    const edge = new THREE.LineSegments(cardEdgeGeometry, edgeMaterial);
-    const image = new THREE.Mesh(imageGeometry, imageMaterial);
-    card.position.z = -0.018;
-    image.position.z = 0.012;
-    root.add(card, edge, image);
-    root.userData = { index, cardMaterial, edgeMaterial, imageMaterial };
-    timelineRoot.add(root);
-    return root;
-  });
-}
-
-function setShuttleTarget(value) {
-  state.shuttleTarget = clamp(value, 0, Math.max(0, sliceCount - 1));
-}
-
-function stepShuttle(direction, amount = 1) {
-  stopPlayback();
-  const origin = Math.round(state.shuttleTarget);
-  setShuttleTarget(origin + direction * amount);
-}
-
-function jumpToFrame(index) {
-  stopPlayback();
-  setShuttleTarget(index);
-}
-
-function startPlayback(direction) {
-  if (!sliceCount) return;
-  if (state.isPlaying && state.playbackDirection === direction) {
-    stopPlayback();
-    return;
-  }
-  if (direction > 0 && state.shuttleTarget >= sliceCount - 1) setShuttleTarget(0);
-  if (direction < 0 && state.shuttleTarget <= 0) setShuttleTarget(sliceCount - 1);
-  state.playbackDirection = direction;
-  state.isPlaying = true;
-  playbackAccumulator = 0;
-  syncPlaybackButtons();
-}
-
-function stopPlayback() {
-  if (!state.isPlaying) return;
-  state.isPlaying = false;
-  playbackAccumulator = 0;
-  syncPlaybackButtons();
-}
-
-function updatePlayback(delta) {
-  if (!state.isPlaying || !sliceCount) return;
-  playbackAccumulator += delta * PLAYBACK_FPS;
-  while (playbackAccumulator >= 1) {
-    playbackAccumulator -= 1;
-    const next = Math.round(state.shuttleTarget) + state.playbackDirection;
-    if (next < 0 || next >= sliceCount) {
-      stopPlayback();
-      break;
-    }
-    setShuttleTarget(next);
-  }
-}
-
-function updateTimeline(delta) {
-  state.shuttle = damp(state.shuttle, state.shuttleTarget, SHUTTLE_SMOOTHING, delta);
-  state.spread = damp(state.spread, state.spreadTarget, SPREAD_SMOOTHING, delta);
-
-  const metrics = getTimelineMetrics();
-  const { step, railLength, midpoint: railMidpoint } = metrics;
-  const selectedY = state.shuttle * step;
-  const overviewBlend = smoothstep(0.46, 0.94, state.spread);
-  const selectedFrame = clamp(Math.round(state.shuttle), 0, Math.max(0, sliceCount - 1));
-
-  slices.forEach((slice) => {
-    const { index, imageMaterial, cardMaterial, edgeMaterial } = slice.userData;
-    const distance = Math.abs(index - state.shuttle);
-    const selected = index === selectedFrame;
-    const frameFocus = focusMode === 'frame';
-    slice.position.y = index * step;
-    const expandedScale = THREE.MathUtils.lerp(1, 1.65, overviewBlend);
-    slice.scale.setScalar(expandedScale);
-
-    const compactNeighbor = Math.max(0, 1 - distance / 2.7);
-    const expandedPresence = 0.12 + 0.1 * Math.max(0, 1 - distance / 22);
-    const volumeOpacity = THREE.MathUtils.lerp(compactNeighbor * 0.05, expandedPresence, overviewBlend);
-    const baseOpacity = frameFocus ? compactNeighbor * 0.025 : volumeOpacity;
-    imageMaterial.opacity = selected ? 1 : baseOpacity;
-    cardMaterial.opacity = selected
-      ? THREE.MathUtils.lerp(0.06, 0.095, overviewBlend)
-      : frameFocus
-        ? compactNeighbor * 0.005
-        : THREE.MathUtils.lerp(compactNeighbor * 0.012, 0.018, overviewBlend);
-    edgeMaterial.opacity = selected
-      ? THREE.MathUtils.lerp(0.28, 0.52, overviewBlend)
-      : frameFocus
-        ? compactNeighbor * 0.025
-        : THREE.MathUtils.lerp(compactNeighbor * 0.035, 0.16, overviewBlend);
-    slice.visible = selected || distance < (frameFocus ? 3 : THREE.MathUtils.lerp(3, sliceCount, overviewBlend));
-  });
-
-  rail.scale.x = railLength;
-  rail.position.y = railMidpoint;
-  rail.material.opacity = 0.24 * overviewBlend;
-  railTicks.children.forEach((tick) => {
-    tick.position.set(rail.position.x, tick.userData.frameIndex * step, 0);
-    tick.material.opacity = 0.26 * overviewBlend;
-  });
-
-  const desiredPivotY = focusMode === 'frame' ? selectedY : railMidpoint;
-  const pivotDelta = desiredPivotY - trackedPivotY;
-  if (Math.abs(pivotDelta) > 0.00001) {
-    camera.position.y += pivotDelta;
-    controls.target.y += pivotDelta;
-  }
-  trackedPivotY = desiredPivotY;
-  updateCameraTransition(delta);
-  controls.update();
-
-  camera.getWorldDirection(cameraDirection);
-  const topDown = Math.abs(cameraDirection.y);
-  spatialGrid.material.opacity = 0.11 * overviewBlend * (1 - smoothstep(0.7, 0.98, topDown));
-
-  if (selectedFrame !== lastDisplayedFrame) {
-    lastDisplayedFrame = selectedFrame;
-    frameCounter.textContent = `FRAME ${String(selectedFrame + 1).padStart(3, '0')} / ${String(sliceCount).padStart(3, '0')}`;
-  }
-  timelineProgress.style.width = `${sliceCount > 1 ? (state.shuttle / (sliceCount - 1)) * 100 : 0}%`;
-
-  if (pointer.active) setStageStatus('调整时间间距');
-  else if (nativeControlActive) setStageStatus('原生三维控制');
-  else if (state.isPlaying) setStageStatus('沿轨道穿梭');
-  else if (focusMode === 'frame') setStageStatus('当前实体帧 / 俯视');
-  else if (overviewBlend > 0.7) setStageStatus('91 帧 / 三维实体总览');
-  else setStageStatus('三维切片视口');
 }
 
 function updateAtmosphere(elapsed) {
-  atmosphereItems.forEach((item, index) => {
-    if (item.isPoints) {
-      item.position.y = Math.sin(elapsed * 0.12 + item.userData.phase) * 0.08;
-    } else {
-      const scale = 1 + Math.sin(elapsed * 0.18 + item.userData.phase) * 0.025;
-      item.scale.setScalar(prefersReducedMotion ? 1 : scale);
-      item.rotation.z = Math.sin(elapsed * 0.05 + index) * 0.025;
+  if (prefersReducedMotion) return;
+
+  atmosphereRoot.rotation.y = Math.sin(elapsed * 0.12) * 0.025;
+  atmosphereRoot.rotation.x = Math.cos(elapsed * 0.18) * 0.018;
+
+  atmosphereParticles.forEach((particleField) => {
+    const { basePositions, seeds } = particleField.userData;
+    const positions = particleField.geometry.attributes.position.array;
+
+    for (let index = 0; index < seeds.length; index += 1) {
+      const offset = index * 3;
+      const seed = seeds[index];
+      positions[offset] = basePositions[offset] + Math.sin(elapsed * 0.16 + seed) * 0.18;
+      positions[offset + 1] = basePositions[offset + 1] + Math.sin(elapsed * 0.3 + seed * 1.7) * 0.24;
+      positions[offset + 2] = basePositions[offset + 2] + Math.cos(elapsed * 0.21 + seed) * 0.12;
     }
+
+    particleField.geometry.attributes.position.needsUpdate = true;
+    particleField.material.opacity = 0.17 + Math.sin(elapsed * 0.55) * 0.035;
+  });
+
+  atmosphereRings.forEach((ring, index) => {
+    const { phase, spin } = ring.userData;
+    ring.rotation.x += Math.sin(elapsed * 0.23 + phase) * 0.0008;
+    ring.rotation.y += spin * 0.002;
+    ring.rotation.z = Math.sin(elapsed * 0.17 + phase) * 0.07;
+    ring.scale.setScalar(1 + Math.sin(elapsed * 0.5 + phase) * 0.025);
+    ring.material.opacity = 0.055
+      + Math.sin(elapsed * 0.7 + phase) * 0.018
+      + playbackBlend * (0.022 - index * 0.004);
+  });
+
+  atmosphereHalos.forEach((halo, index) => {
+    const { phase } = halo.userData;
+    halo.scale.setScalar(1 + Math.sin(elapsed * 0.32 + phase) * 0.045);
+    halo.material.opacity = 0.028
+      + Math.sin(elapsed * 0.48 + phase) * 0.009
+      + playbackBlend * (0.032 - index * 0.008);
   });
 }
 
-function radialDistance(clientX, clientY) {
-  const rect = canvas.getBoundingClientRect();
-  const dx = clientX - (rect.left + rect.width / 2);
-  const dy = clientY - (rect.top + rect.height / 2);
-  return Math.hypot(dx, dy);
+function createGradedImageMaterial(texture, opacity = 0) {
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 4);
+
+  const imageMaterial = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    opacity,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+  });
+  imageMaterial.onBeforeCompile = (shader) => {
+    shader.uniforms.sliceSaturation = { value: 1.12 };
+    shader.uniforms.sliceContrast = { value: 1.04 };
+    shader.uniforms.sliceWarmth = { value: 0 };
+    imageMaterial.userData.shader = shader;
+    shader.fragmentShader = shader.fragmentShader.replace(
+      'void main() {',
+      `uniform float sliceSaturation;
+uniform float sliceContrast;
+uniform float sliceWarmth;
+
+void main() {`,
+    );
+    shader.fragmentShader = shader.fragmentShader.replace(
+      'vec3 outgoingLight = reflectedLight.indirectDiffuse;',
+      `vec3 outgoingLight = reflectedLight.indirectDiffuse;
+  float sliceLuminance = dot(outgoingLight, vec3(0.299, 0.587, 0.114));
+  outgoingLight = mix(vec3(sliceLuminance), outgoingLight, sliceSaturation);
+  outgoingLight = (outgoingLight - 0.5) * sliceContrast + 0.5;
+  vec3 coralLift = outgoingLight * vec3(1.14, 0.88, 0.93);
+  outgoingLight = mix(outgoingLight, coralLift, sliceWarmth);`,
+    );
+  };
+  return imageMaterial;
 }
 
-function beginPointer(event) {
-  if (!sliceCount || pointer.active || event.button !== 0 || !event.altKey) return;
-  pointer.active = true;
-  pointer.id = event.pointerId;
-  pointer.startX = event.clientX;
-  pointer.startY = event.clientY;
-  pointer.startRadius = radialDistance(event.clientX, event.clientY);
-  pointer.startSpread = state.spreadTarget;
-  stopPlayback();
-  controls.enabled = false;
-  cameraTransition = null;
-  nativeControlActive = false;
-  stage.classList.remove('is-orbiting');
-  stage.classList.add('is-expanding');
-  canvas.setPointerCapture(event.pointerId);
-  event.stopImmediatePropagation();
-  event.preventDefault();
+function createSlice(texture, index) {
+  const group = new THREE.Group();
+  const cardMaterial = new THREE.MeshBasicMaterial({
+    color: index % 3 === 0 ? 0xffb6bd : index % 3 === 1 ? 0xc8b4f2 : 0xffd38f,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+  });
+  const card = new THREE.Mesh(roundedRectGeometry(CARD_WIDTH, CARD_HEIGHT, 0.1), cardMaterial);
+  card.position.z = -0.06;
+  card.renderOrder = 10;
+
+  const outlineMaterial = new THREE.LineBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  const outline = new THREE.LineSegments(new THREE.EdgesGeometry(card.geometry), outlineMaterial);
+  outline.position.z = -0.03;
+  outline.renderOrder = 12;
+
+  const imageMaterial = createGradedImageMaterial(texture);
+  const image = new THREE.Mesh(new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT), imageMaterial);
+  image.position.z = 0.02;
+  image.renderOrder = 11;
+
+  const glowMaterial = new THREE.MeshBasicMaterial({
+    map: texture,
+    color: 0xff5f70,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+  });
+  const glow = new THREE.Mesh(new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT), glowMaterial);
+  glow.position.z = 0.006;
+  glow.renderOrder = 10.5;
+
+  group.add(card, glow, outline, image);
+  group.position.y = 0.08;
+  group.userData = { index, card, glow, outline, image };
+  sliceRoot.add(group);
+  slices.push(group);
 }
 
-function movePointer(event) {
-  if (!pointer.active || pointer.id !== event.pointerId) return;
-  const rect = canvas.getBoundingClientRect();
-  const radiusDelta = radialDistance(event.clientX, event.clientY) - pointer.startRadius;
-  state.spreadTarget = clamp(
-    pointer.startSpread + radiusDelta / (Math.min(rect.width, rect.height) * 0.31),
-    0,
-    1,
+function createFocusLayer() {
+  if (focusReady || sliceTextures.length === 0) return;
+
+  const focusImage = new THREE.Mesh(
+    new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT),
+    createGradedImageMaterial(sliceTextures[0]),
   );
-  syncExpandButton();
-  event.stopImmediatePropagation();
-  event.preventDefault();
+  focusImage.position.z = 0.16;
+  focusImage.renderOrder = 42;
+
+  const nextFocusImage = new THREE.Mesh(
+    new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT),
+    createGradedImageMaterial(sliceTextures[0]),
+  );
+  nextFocusImage.position.z = 0.15;
+  nextFocusImage.renderOrder = 41;
+
+  const focusGlow = new THREE.Mesh(
+    new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT),
+    new THREE.MeshBasicMaterial({
+      map: sliceTextures[0],
+      color: 0xff5f70,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+    }),
+  );
+  focusGlow.position.z = 0.1;
+  focusGlow.renderOrder = 40;
+
+  const nextFocusGlow = new THREE.Mesh(
+    new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT),
+    new THREE.MeshBasicMaterial({
+      map: sliceTextures[0],
+      color: 0xff5f70,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+    }),
+  );
+  nextFocusGlow.position.z = 0.09;
+  nextFocusGlow.renderOrder = 39;
+
+  focusTrailPlanes.push(
+    ...Array.from({ length: FOCUS_TRAIL_COUNT }, (_, index) => {
+      const trail = new THREE.Mesh(
+        new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT),
+        new THREE.MeshBasicMaterial({
+          map: sliceTextures[0],
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+          toneMapped: false,
+        }),
+      );
+      trail.position.z = 0.04 - index * 0.004;
+      trail.renderOrder = 30 + index;
+      focusTrail.add(trail);
+      return trail;
+    }),
+  );
+
+  focusObjects.image = focusImage;
+  focusObjects.nextImage = nextFocusImage;
+  focusObjects.glow = focusGlow;
+  focusObjects.nextGlow = nextFocusGlow;
+  focusLayer.add(focusTrail, nextFocusGlow, focusGlow, nextFocusImage, focusImage);
+  focusLayer.visible = true;
+  focusReady = true;
 }
 
-function endPointer(event) {
-  if (!pointer.active || pointer.id !== event.pointerId) return;
-  if (canvas.hasPointerCapture(event.pointerId)) {
-    canvas.releasePointerCapture(event.pointerId);
+async function loadSlices() {
+  const manifestResponse = await fetch('/assets/slice-manifest.json');
+  if (!manifestResponse.ok) {
+    throw new Error(`Unable to load slice manifest: ${manifestResponse.status}`);
   }
-  controls.enabled = true;
-  pointer.active = false;
-  pointer.id = null;
-  stage.classList.remove('is-expanding');
-  event.stopImmediatePropagation();
+
+  const manifest = await manifestResponse.json();
+  const manifestFrames = Array.isArray(manifest.frames) ? manifest.frames : [];
+  if (!Number.isInteger(manifest.count) || manifest.count < 1 || manifestFrames.length !== manifest.count) {
+    throw new Error('Slice manifest count does not match its frame list');
+  }
+
+  sliceCount = manifest.count;
+  frameCounter.textContent = `FRAME 01 / ${sliceCount}`;
+
+  const loader = new THREE.TextureLoader();
+  let loaded = 0;
+  const textures = await Promise.all(
+    Array.from({ length: sliceCount }, async (_, index) => {
+      const texture = await loader.loadAsync(FRAME_URL(index));
+      loaded += 1;
+      setLoading(0.12 + (loaded / sliceCount) * 0.82, `载入时间切片 ${loaded} / ${sliceCount}`);
+      return texture;
+    }),
+  );
+
+  sliceTextures = textures;
+  textures.forEach(createSlice);
+  createFocusLayer();
 }
 
-function handleWheel(event) {
-  if (!sliceCount || !event.altKey) return;
-  event.preventDefault();
-  event.stopImmediatePropagation();
-  const now = performance.now();
-  if (now - lastWheelStepAt < 34) return;
-  lastWheelStepAt = now;
-  stepShuttle(Math.sign(event.deltaY) || 1, event.shiftKey ? 5 : 1);
+function updatePlayback(delta) {
+  if (!state.isPlaying || sliceCount < 2) return;
+
+  state.frameFloat += delta * PLAYBACK_FPS * state.playbackDirection;
+  const reachedEnd = state.playbackDirection > 0
+    ? state.frameFloat >= sliceCount - 1
+    : state.frameFloat <= 0;
+  if (!reachedEnd) return;
+
+  state.frameFloat = state.playbackDirection > 0 ? sliceCount - 1 : 0;
+  state.isPlaying = false;
+  syncPlaybackButtons();
+  setStageStatus(state.playbackDirection > 0 ? '正向播放结束' : '倒放结束');
 }
 
-function handleKeydown(event) {
-  if (!sliceCount) return;
-  if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
-    stepShuttle(1, event.shiftKey ? 5 : 1);
-  } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
-    stepShuttle(-1, event.shiftKey ? 5 : 1);
-  } else if (event.key === 'Home' && (event.ctrlKey || event.metaKey)) {
-    jumpToFrame(0);
-  } else if (event.key === 'End') {
-    jumpToFrame(sliceCount - 1);
-  } else if (event.key === 'Home') {
-    setCameraPreset('perspective');
-  } else if (event.code === 'Numpad1') {
-    setCameraPreset('front');
-  } else if (event.code === 'Numpad3') {
-    setCameraPreset('side');
-  } else if (event.code === 'Numpad7' || event.key.toLowerCase() === 'f') {
-    setCameraPreset('frame');
-  } else if (event.key.toLowerCase() === 'e') {
-    toggleSpread();
-  } else if (event.key.toLowerCase() === 'r') {
-    resetCameraView();
-  } else if (event.code === 'Space') {
-    startPlayback(1);
-  } else {
+function updateCamera(delta, elapsed) {
+  cameraZoom.current = damp(cameraZoom.current, cameraZoom.target, CAMERA_ZOOM_SMOOTHING, delta);
+  camera.position.z = cameraZoom.current;
+
+  const focusDrift = prefersReducedMotion ? 0 : state.spread;
+  cameraFocusPoint.set(
+    Math.sin(elapsed * 0.56) * 0.008 * focusDrift,
+    CAMERA_FOCUS_Y + Math.sin(elapsed * 0.78) * 0.018 * focusDrift,
+    0,
+  );
+  sliceRoot.localToWorld(cameraFocusPoint);
+  camera.lookAt(cameraFocusPoint);
+}
+
+function updateRotation(delta) {
+  const smoothing = state.isDragging ? ROTATION_DRAG_SMOOTHING : ROTATION_RELEASE_SMOOTHING;
+  state.yaw = damp(state.yaw, state.yawTarget, smoothing, delta);
+  state.pitch = damp(state.pitch, state.pitchTarget, smoothing, delta);
+
+  rotationRig.rotation.y = state.yaw;
+  rotationRig.rotation.x = state.pitch;
+}
+
+function updateGradedMaterial(material, saturation, contrast, warmth) {
+  const shader = material.userData.shader;
+  if (!shader) return;
+  shader.uniforms.sliceSaturation.value = saturation;
+  shader.uniforms.sliceContrast.value = contrast;
+  shader.uniforms.sliceWarmth.value = warmth;
+}
+
+function updateFocus(delta, elapsed) {
+  if (!focusReady || sliceCount < 1) return;
+
+  playbackBlend = damp(
+    playbackBlend,
+    state.isPlaying ? 1 : 0,
+    PLAYBACK_BLEND_SMOOTHING,
+    delta,
+  );
+  stage.classList.toggle('is-playing', state.isPlaying || playbackBlend > 0.02);
+
+  const frameFloat = clamp(state.frameFloat, 0, sliceCount - 1);
+  const currentIndex = Math.floor(frameFloat);
+  const nextIndex = Math.min(currentIndex + 1, sliceCount - 1);
+  const interpolation = frameFloat - currentIndex;
+  const focusSaturation = 1.9;
+  const focusContrast = 1.29;
+  const focusWarmth = 0.28;
+
+  focusObjects.image.material.map = sliceTextures[currentIndex];
+  focusObjects.nextImage.material.map = sliceTextures[nextIndex];
+  focusObjects.glow.material.map = sliceTextures[currentIndex];
+  focusObjects.nextGlow.material.map = sliceTextures[nextIndex];
+
+  focusObjects.image.material.opacity = 0.99 * (1 - interpolation);
+  focusObjects.nextImage.material.opacity = nextIndex === currentIndex ? 0 : 0.99 * interpolation;
+  const glowPulse = prefersReducedMotion
+    ? FOCUS_GLOW_BASE
+    : FOCUS_GLOW_BASE
+      + Math.sin((elapsed / FOCUS_GLOW_CYCLE) * Math.PI * 2) * FOCUS_GLOW_BREATH;
+  focusObjects.glow.material.opacity = glowPulse * (1 - interpolation);
+  focusObjects.nextGlow.material.opacity = nextIndex === currentIndex
+    ? 0
+    : glowPulse * interpolation;
+
+  updateGradedMaterial(focusObjects.image.material, focusSaturation, focusContrast, focusWarmth);
+  updateGradedMaterial(focusObjects.nextImage.material, focusSaturation, focusContrast, focusWarmth);
+  focusObjects.image.scale.setScalar(1.03 + playbackBlend * 0.02);
+  focusObjects.nextImage.scale.setScalar(1.03 + playbackBlend * 0.02);
+  focusObjects.glow.scale.setScalar(1.04 + playbackBlend * 0.025);
+  focusObjects.nextGlow.scale.copy(focusObjects.glow.scale);
+
+  const trailOpacity = [0.11, 0.075, 0.05, 0.032, 0.02];
+  const trailVisibility = prefersReducedMotion ? 0 : playbackBlend;
+  focusTrailPlanes.forEach((trail, index) => {
+    const trailFrame = clamp(
+      Math.round(frameFloat - state.playbackDirection * (index + 1) * FOCUS_TRAIL_FRAME_STEP),
+      0,
+      sliceCount - 1,
+    );
+    trail.material.map = sliceTextures[trailFrame];
+    trail.material.opacity = trailVisibility * trailOpacity[index];
+    trail.position.x = -state.playbackDirection * (index + 1) * FOCUS_TRAIL_SPACING * trailVisibility;
+    trail.position.z = 0.04
+      - state.playbackDirection * (index + 1) * FOCUS_TRAIL_DEPTH_STEP * trailVisibility;
+    trail.position.y = ((index % 2 === 0 ? 1 : -1) * (index + 1) * 0.012) * trailVisibility;
+    trail.scale.setScalar(1 - index * 0.04);
+  });
+}
+
+function updateSlices(delta, elapsed) {
+  state.spread = damp(state.spread, state.spreadTarget, 7, delta);
+  sliceRoot.position.y = prefersReducedMotion ? 0 : Math.sin(elapsed * 1.15) * 0.022;
+  const reveal = smoothstep(0.025, 0.2, state.spread);
+  const sideView = smoothstep(0.2, 0.86, Math.abs(Math.sin(state.yaw)));
+  const timelineCenter = (sliceCount - 1) / 2;
+  const timelineVisibility = reveal * (0.74 - playbackBlend * 0.22);
+  slices.forEach((slice, index) => {
+    const distance = Math.abs(index - timelineCenter);
+    const timelineFade = Math.exp(-distance / 15);
+    const playbackDistance = Math.abs(index - state.frameFloat);
+    const playbackCursor = reveal * playbackBlend * Math.exp(-playbackDistance / PLAYBACK_CURSOR_DECAY);
+    const playbackCursorCore = reveal
+      * playbackBlend
+      * Math.exp(-playbackDistance / PLAYBACK_CURSOR_CORE_DECAY);
+
+    slice.visible = true;
+    slice.position.set(0, 0, -(index - timelineCenter) * SLICE_DEPTH_STEP * state.spread);
+    slice.rotation.set(0, 0, 0);
+
+    slice.userData.card.material.opacity = timelineVisibility
+      * (0.006 + sideView * 0.01 + timelineFade * 0.016)
+      + playbackCursor * 0.012;
+    slice.userData.outline.material.opacity = timelineVisibility
+      * (0.035 + sideView * 0.02 + timelineFade * 0.06)
+      + playbackCursor * (0.075 + sideView * 0.025);
+    slice.userData.image.material.opacity = timelineVisibility * (0.002 + timelineFade * 0.05)
+      + playbackCursor * 0.048;
+    slice.userData.glow.material.opacity = playbackCursorCore * (0.032 + sideView * 0.012);
+    slice.userData.glow.scale.setScalar(1.01 + playbackCursorCore * 0.06);
+    updateGradedMaterial(
+      slice.userData.image.material,
+      1.04 + timelineFade * 0.1 + playbackCursor * 0.22,
+      1.02 + timelineFade * 0.08 + playbackCursor * 0.1,
+      timelineFade * 0.025 + playbackCursor * 0.06,
+    );
+    slice.scale.setScalar(0.88 + timelineFade * 0.04 + playbackCursor * 0.045);
+  });
+
+  const frame = Math.round(state.frameFloat) + 1;
+  if (frame !== lastDisplayedFrame) {
+    lastDisplayedFrame = frame;
+    frameCounter.textContent = `FRAME ${String(frame).padStart(3, '0')} / ${sliceCount}`;
+  }
+
+  expandButton.setAttribute('aria-pressed', String(state.spreadTarget > 0.5));
+  expandButton.textContent = state.spreadTarget > 0.5 ? '收拢切片' : '展开切片';
+}
+
+function updateInteraction() {
+  const totalX = pointer.currentX - pointer.startX;
+  const totalY = pointer.currentY - pointer.startY;
+
+  if (!pointer.moved) {
+    if (Math.hypot(totalX, totalY) < DRAG_DEADZONE) return;
+    clearLongPressTimer();
+    pointer.moved = true;
+    pointer.lastX = pointer.currentX;
+    pointer.lastY = pointer.currentY;
     return;
   }
+
+  const deltaX = pointer.currentX - pointer.lastX;
+  const deltaY = pointer.currentY - pointer.lastY;
+  state.yawTarget += (deltaX / Math.max(window.innerWidth, 1)) * YAW_PER_VIEWPORT;
+  state.pitchTarget = clamp(
+    state.pitchTarget + (deltaY / Math.max(window.innerHeight, 1)) * PITCH_PER_VIEWPORT,
+    -PITCH_LIMIT,
+    PITCH_LIMIT,
+  );
+  pointer.lastX = pointer.currentX;
+  pointer.lastY = pointer.currentY;
+}
+
+function clearLongPressTimer() {
+  if (!pointer.longPressTimer) return;
+  window.clearTimeout(pointer.longPressTimer);
+  pointer.longPressTimer = 0;
+}
+
+function beginPlayback() {
+  beginPlaybackInDirection(1);
+}
+
+function beginPlaybackInDirection(direction) {
+  if (sliceCount < 2) return;
+  state.playbackDirection = direction < 0 ? -1 : 1;
+  if (state.playbackDirection > 0 && state.frameFloat >= sliceCount - 1) state.frameFloat = 0;
+  if (state.playbackDirection < 0 && state.frameFloat <= 0) state.frameFloat = sliceCount - 1;
+  state.isPlaying = true;
+  state.isDragging = pointer.active;
+  syncPlaybackButtons();
+  setStageStatus(state.playbackDirection > 0 ? '正向播放' : '倒放');
+}
+
+function pausePlayback() {
+  if (!state.isPlaying) return;
+  state.isPlaying = false;
+  syncPlaybackButtons();
+  setStageStatus('已暂停');
+}
+
+function jumpToFrame(frameIndex, label) {
+  if (sliceCount < 1) return;
+  clearLongPressTimer();
+  state.isPlaying = false;
+  state.frameFloat = clamp(frameIndex, 0, sliceCount - 1);
+  syncPlaybackButtons();
+  setStageStatus(label);
+  canvas.focus({ preventScroll: true });
+}
+
+function onPlaybackButtonClick(direction) {
+  if (state.isPlaying && state.playbackDirection === direction) {
+    pausePlayback();
+    return;
+  }
+  beginPlaybackInDirection(direction);
+}
+
+function onPointerDown(event) {
+  const canPlayOnHold = event.button === 0 || event.button === 2;
+  pointer.active = true;
+  pointer.startX = event.clientX;
+  pointer.startY = event.clientY;
+  pointer.currentX = event.clientX;
+  pointer.currentY = event.clientY;
+  pointer.lastX = event.clientX;
+  pointer.lastY = event.clientY;
+  pointer.moved = false;
+  pointer.longPressReady = false;
+  clearLongPressTimer();
+  state.isDragging = true;
+  if (event.button === 2) event.preventDefault();
+  canvas.setPointerCapture(event.pointerId);
+  if (canPlayOnHold) {
+    pointer.longPressTimer = window.setTimeout(() => {
+      pointer.longPressTimer = 0;
+      if (!pointer.active || pointer.moved) return;
+      pointer.longPressReady = true;
+      beginPlaybackInDirection(event.button === 2 ? -1 : 1);
+    }, LONG_PRESS_DELAY);
+  }
+}
+
+function onPointerMove(event) {
+  if (!pointer.active) return;
+  pointer.currentX = event.clientX;
+  pointer.currentY = event.clientY;
+  updateInteraction();
+}
+
+function onPointerUp(event) {
+  clearLongPressTimer();
+  if (pointer.longPressReady) pausePlayback();
+  pointer.active = false;
+  pointer.moved = false;
+  pointer.longPressReady = false;
+  state.isDragging = false;
+  if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+}
+
+function onWheel(event) {
   event.preventDefault();
+  const modeMultiplier = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? window.innerHeight : 1;
+  const delta = clamp(event.deltaY * modeMultiplier, -240, 240);
+  cameraZoom.target = clamp(
+    cameraZoom.target + delta * CAMERA_ZOOM_SENSITIVITY,
+    CAMERA_MIN_DISTANCE,
+    CAMERA_MAX_DISTANCE,
+  );
+}
+
+function toggleSpread() {
+  state.spreadTarget = state.spreadTarget > 0.5 ? 0 : 1;
+  canvas.focus({ preventScroll: true });
+}
+
+function onKeyDown(event) {
+  if (event.key === ' ' || event.key === 'Spacebar') {
+    event.preventDefault();
+    if (!event.repeat) beginPlayback();
+    return;
+  }
+  if (event.key === 'ArrowRight') {
+    event.preventDefault();
+    state.yawTarget += THREE.MathUtils.degToRad(10);
+  }
+  if (event.key === 'ArrowLeft') {
+    event.preventDefault();
+    state.yawTarget -= THREE.MathUtils.degToRad(10);
+  }
+  if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    state.pitchTarget = clamp(state.pitchTarget - THREE.MathUtils.degToRad(4), -PITCH_LIMIT, PITCH_LIMIT);
+  }
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    state.pitchTarget = clamp(state.pitchTarget + THREE.MathUtils.degToRad(4), -PITCH_LIMIT, PITCH_LIMIT);
+  }
+  if (event.key === 'Home') {
+    event.preventDefault();
+    state.spreadTarget = 0;
+  }
+  if (event.key === 'End') {
+    event.preventDefault();
+    state.spreadTarget = 1;
+  }
+  if (event.key.toLowerCase() === 'r') {
+    event.preventDefault();
+    state.yawTarget = 0;
+    state.pitchTarget = 0.08;
+  }
+}
+
+function onKeyUp(event) {
+  if (event.key === ' ' || event.key === 'Spacebar') {
+    event.preventDefault();
+    pausePlayback();
+  }
+}
+
+function onWindowBlur() {
+  clearLongPressTimer();
+  pausePlayback();
+  pointer.active = false;
+  pointer.moved = false;
+  pointer.longPressReady = false;
+  state.isDragging = false;
 }
 
 function resize() {
-  const { clientWidth, clientHeight } = canvas;
-  if (!clientWidth || !clientHeight) return;
-  renderer.setSize(clientWidth, clientHeight, false);
-  camera.aspect = clientWidth / clientHeight;
+  const width = canvas.clientWidth || window.innerWidth;
+  const height = canvas.clientHeight || window.innerHeight;
+  camera.aspect = width / height;
   camera.updateProjectionMatrix();
+  renderer.setSize(width, height, false);
 }
 
-function bindEvents() {
-  canvas.addEventListener('pointerdown', beginPointer, { capture: true });
-  canvas.addEventListener('pointermove', movePointer, { capture: true });
-  canvas.addEventListener('pointerup', endPointer, { capture: true });
-  canvas.addEventListener('pointercancel', endPointer, { capture: true });
+async function boot() {
+  resize();
+  createAtmosphere();
+  window.addEventListener('resize', resize, { passive: true });
+  canvas.addEventListener('pointerdown', onPointerDown);
+  canvas.addEventListener('pointermove', onPointerMove);
+  canvas.addEventListener('pointerup', onPointerUp);
+  canvas.addEventListener('pointercancel', onPointerUp);
+  canvas.addEventListener('wheel', onWheel, { passive: false });
+  canvas.addEventListener('keydown', onKeyDown);
+  canvas.addEventListener('keyup', onKeyUp);
+  canvas.addEventListener('blur', pausePlayback);
+  window.addEventListener('blur', onWindowBlur);
   canvas.addEventListener('contextmenu', (event) => event.preventDefault());
-  canvas.addEventListener('wheel', handleWheel, { capture: true, passive: false });
-  canvas.addEventListener('keydown', handleKeydown);
-  window.addEventListener('resize', resize);
-
+  expandButton.addEventListener('click', toggleSpread);
   playButtons.forEach((button) => {
-    button.addEventListener('click', () => startPlayback(Number(button.dataset.playbackDirection)));
-  });
-  jumpStartButton.addEventListener('click', () => jumpToFrame(0));
-  jumpEndButton.addEventListener('click', () => jumpToFrame(sliceCount - 1));
-  resetViewButton.addEventListener('click', () => {
-    resetCameraView();
-    canvas.focus({ preventScroll: true });
-  });
-  viewportButtons.forEach((button) => {
     button.addEventListener('click', () => {
-      setCameraPreset(button.dataset.viewPreset);
-      canvas.focus({ preventScroll: true });
+      onPlaybackButtonClick(Number(button.dataset.playbackDirection));
     });
   });
-  expandButton.addEventListener('click', () => {
-    toggleSpread();
-    canvas.focus({ preventScroll: true });
-  });
-}
+  jumpStartButton.addEventListener('click', () => jumpToFrame(0, '已到开头'));
+  jumpEndButton.addEventListener('click', () => jumpToFrame(sliceCount - 1, '已到结尾'));
 
-function animate() {
-  const delta = Math.min(clock.getDelta(), 0.05);
-  const elapsed = clock.elapsedTime;
-  updatePlayback(delta);
-  if (sliceCount) updateTimeline(delta);
-  updateAtmosphere(elapsed);
-  renderer.render(scene, camera);
-  requestAnimationFrame(animate);
-}
-
-async function initialise() {
   try {
-    setLoading(0.02, '读取逐帧清单');
-    const response = await fetch('/assets/slice-manifest.json', { cache: 'no-store' });
-    if (!response.ok) throw new Error(`清单请求失败：${response.status}`);
-    const manifest = await response.json();
-    if (
-      !Number.isInteger(manifest.count)
-      || manifest.count < 2
-      || manifest.sampleMode !== 'every-integer-frame'
-      || manifest.view !== 'fixed-top-front'
-      || manifest.timelineAxis !== 'y'
-    ) {
-      throw new Error('时间切片清单不是固定 X-Y 正视的逐帧水平轨道');
-    }
-    sliceCount = manifest.count;
-    frameCounter.textContent = `FRAME 001 / ${String(sliceCount).padStart(3, '0')}`;
-    setLoading(0.08, `确认 ${sliceCount} 张静态逐帧切片`);
-    const textures = await loadTextures(sliceCount);
-    setLoading(0.94, '将每张纹理永久绑定到独立平面');
-    createSlices(textures);
-    const preview = new URLSearchParams(window.location.search);
-    const previewFrame = Number(preview.get('frame'));
-    const previewSpread = Number(preview.get('spread'));
-    const previewView = preview.get('view');
-    if (Number.isFinite(previewFrame) && previewFrame >= 1) {
-      state.shuttle = clamp(previewFrame - 1, 0, sliceCount - 1);
-      state.shuttleTarget = state.shuttle;
-    } else {
-      state.shuttle = Math.floor((sliceCount - 1) / 2);
-      state.shuttleTarget = state.shuttle;
-    }
-    if (Number.isFinite(previewSpread)) {
-      state.spread = clamp(previewSpread, 0, 1);
-      state.spreadTarget = state.spread;
-      syncExpandButton();
-    }
-    const initialPreset = ['perspective', 'front', 'side', 'frame'].includes(previewView)
-      ? previewView
-      : 'perspective';
-    setCameraPreset(initialPreset, true);
-    setLoading(1, '真实时间轨道已就绪');
+    setStageStatus('载入切片');
+    setLoading(0.08, '读取完整动画帧清单');
+    await loadSlices();
+    setStageStatus('交互就绪');
+    setLoading(1, '完成');
     loadingPanel.classList.add('is-complete');
-    window.setTimeout(() => { loadingPanel.hidden = true; }, 700);
-    canvas.focus({ preventScroll: true });
   } catch (error) {
     console.error(error);
-    loadingPanel.classList.add('is-error');
-    loadingPercent.textContent = 'ERROR';
-    loadingBarFill.style.width = '100%';
-    loadingDetail.textContent = error instanceof Error ? error.message : '时间切片载入失败';
-    setStageStatus('载入失败');
+    setStageStatus('资源缺失');
+    loadingDetail.textContent = '请检查 public/assets/slices 与 slice-manifest.json，再刷新页面';
   }
 }
 
-createAtmosphere();
-createRail();
-createSpatialGrid();
-bindEvents();
-resize();
-syncPlaybackButtons();
-syncExpandButton();
-syncViewportButtons();
-animate();
-initialise();
+function render() {
+  const delta = Math.min(clock.getDelta(), 0.05);
+  animationTime += delta;
+  updatePlayback(delta);
+  updateRotation(delta);
+  updateFocus(delta, animationTime);
+  updateSlices(delta, animationTime);
+  updateCamera(delta, animationTime);
+  updateAtmosphere(animationTime);
+  renderer.render(scene, camera);
+  requestAnimationFrame(render);
+}
+
+boot();
+render();

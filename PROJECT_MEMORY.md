@@ -1,17 +1,10 @@
-# 工程记忆：蝴蝶 3D 时间切片
+# 工程记忆：兰花 3D 时间切片
 
-> 更新时间：2026-09-01
+> 更新时间：2026-08-31
 >
-> 这是本项目的长期上下文、技术决策和执行记录。后续继续开发时，优先阅读本文，再查看 `README.md`、`src/main.js` 和 `scripts/export_butterfly_slices.py`。
+> 这是本项目的长期上下文、技术决策和执行记录。后续继续开发时，优先阅读本文，再查看 `README.md`、`src/main.js` 和 `scripts/export_blender_assets.py`。
 >
 > 结构化快速交接摘要同步维护在 `wiki_memory/`；每次代码、视觉、运行资产或记忆修改都必须同步更新相关记忆。
-
-### 2026-09-01 最近修改
-
-- 将网页主体从兰花切换为用户指定的 `BUTTERFLY_FLAP_FAST_FOLLOW_PATH_1.blend`。Blender 场景 `ARTIST_EDIT` 提供 1–91 帧的翅膀拍动和路径动画；网页资源现在是 91 张蝴蝶透明 PNG。
-- 新增 `scripts/export_butterfly_slices.py`：只渲染展示蝴蝶网格，不使用源 `.blend` 原相机、展示台或重复源对象；每帧让临时相机沿动画节点本地 `-X` 正面轴跟随，保证输出保持蝴蝶正面。
-- 更新 `slice-manifest.json`、91 张 PNG、标题和加载文案；将网页图片平面调整为正方形 `1.68 × 1.68`，焦点微光改为蓝色并降低暖色偏移，以保留蝴蝶原始蓝色材质。
-- 将蝴蝶 `.blend` 与两段参考 MP4 统一收纳到项目根目录 `Source/`，通过 `.gitignore` 保持本地源素材管理，网页运行资产仍由 `public/assets/` 提供。
 
 ### 2026-08-31 最近修改
 
@@ -67,30 +60,30 @@
 
 ## 1. 项目目标
 
-制作一个独立的 Three.js/Vite 互动作品页，主体是用户指定的蝴蝶。
+制作一个独立的 Three.js/Vite 互动作品页，主体是兰花，不是参考视频中的蝴蝶。
 
 核心体验：
 
-- 长按画布播放蝴蝶动作的 91 张透明渲染切片，松开暂停。
-- 动画按源场景 1–91 的每个整数帧提取，并由正面跟随相机生成的 PNG 切片直接呈现。
-- “展开切片”按钮让 91 张透明时间切片沿世界 Z 深度轴展开或收拢。
+- 长按画布播放兰花形态动画的 166 张透明渲染切片，松开暂停。
+- 动画按源场景 1–166 的每个整数帧提取，并由 PNG 切片直接呈现。
+- “展开切片”按钮让 166 张透明时间切片沿世界 Z 深度轴展开或收拢。
 - 展开后能看到连续的 3D 平行切片序列、嵌套层次、独立卡片边缘和视角变化。
-- 当前帧固定在视觉中心；固定时间轴负责保留 91 张切片的空间结构，播放由独立 `focusLayer` 的当前/下一帧连续交叉淡化、沿固定深度穿过的低透明度时间游标、横深轨迹残影和局部通道光晕表现，不再让整组切片沿深度轴高速扫过镜头。
+- 当前帧固定在视觉中心；固定时间轴负责保留 166 张切片的空间结构，播放由独立 `focusLayer` 的当前/下一帧连续交叉淡化、沿固定深度穿过的低透明度时间游标、横深轨迹残影和局部通道光晕表现，不再让整组切片沿深度轴高速扫过镜头。
 - 滚轮只控制主体的相机距离缩放，不参与时间播放、切片展开或旋转；相机缩放始终以视觉中心焦点为目标，最大放大时主体不应持续落在画面下方。
 - 粉色、紫色、黄色的粉彩雾光和透明卡片构成整体视觉。
 - 桌面端优先保证完整空间效果，移动端自动降低 DPR、切片组尺寸和环境细节。
 
-参考视频继续用于吸收稳定主体、连续姿态过渡和时间切片构图；本项目不新增滚动驱动时间帧，时间仍由按钮和长按自动播放控制，当前页面不显示额外的实时 3D 主体。
+参考视频的重点不是复用蝴蝶素材，而是吸收其稳定主体、连续姿态过渡和时间切片构图；本项目不新增滚动驱动时间帧，时间仍由按钮和长按自动播放控制，当前页面不显示额外的实时 3D 主体。
 
 ## 2. 源素材与已确认事实
 
 ### Blender 源文件
 
-当前实际使用的源文件是：
+实际使用的源文件是：
 
-`Source/BUTTERFLY_FLAP_FAST_FOLLOW_PATH_1.blend`
+`C:\Users\Administrator\Desktop\Free\兰花_形态1.blend`
 
-蝴蝶源文件位于本工程的 `Source/`，由 Git 忽略、不进入远端网页仓库；源文件原相机不参与网页采样。
+当前使用的实际路径是 `C:\Users\Administrator\Desktop\Free\兰花_形态1.blend`。曾输入过的 `C:\Users\Administrator\Desktop\Free\兰花\_形态1.blend` 不存在；兰花源文件位于本工程目录外，不进入 Git 仓库。
 
 使用 Blender：
 
@@ -98,41 +91,46 @@
 
 Blender 检查结果：
 
-- 场景：`ARTIST_EDIT`
-- 帧范围：1–91，30 fps
+- 场景：`兰花_形态1_模型展示`
+- 帧范围：1–166
 - 帧率：30 fps，约 5.5 秒
-- 动画对象：带路径动作的 `展示_..._03_..._2` 动画节点，以及两个带拍动动作的翅膀网格
-- 当前只采样三个“展示_”前缀蝴蝶网格，不导出展示台、重复源对象或场景背景
-- 正面采样相机沿动画节点本地 `-X` 轴逐帧跟随，不使用源 `.blend` 原相机
-- 蝴蝶材质和贴图由源 `.blend` 读取后直接渲染为透明 PNG；该过程不会写回源工程
+- 动画对象：`兰花_形态1_动画缓存`
+- 动画类型：MeshSequenceCache，使用 `OrchidMeshGrp.abc`
+- 缓存网格：8502 vertices、8488 polygons
+- 三组静态源形态：闭合、半闭合、开放
+- 当前不导出展示台，GLB 和时间切片只包含兰花主体
+- Blender 相机本身没有动画
+- Blender 导出脚本会在渲染 PNG 前按完整动画评估包围盒自动调整镜头焦距和 shift，保持原相机方向并为最宽姿态保留安全边距；该设置不会写回源 `.blend`
+- 4 张兰花贴图已打包在 `.blend` 中，尺寸为 1024×1024
+- Blender 文件没有 Actions 或 Shape Keys；导出脚本仍可烘焙 morph targets 供 GLB 检查，但网页当前只使用透明 PNG 时间切片
 
-旧兰花导出的历史外部素材目录仍包含原始 FBX、MAX 和贴图，但当前蝴蝶网页导出不依赖它们。
+外层素材目录 `C:\Users\Administrator\Desktop\Free\形态1` 还包含原始 FBX、MAX 和贴图，但网页导出不依赖它们。
 
 ### 参考 MP4
 
-参考视频位于 `Source/`，约 3444×1936、17 秒、约 515 帧。视频概念上将动作组织为时间切片；本次复盘确认参考片段不是网页滚动播放器，因此只借鉴其主体稳定、连续过渡和残影关系，不把滚动控制接回 `frameFloat`。网页端继续使用固定相机转台响应用户拖拽旋转。
+参考视频位于外层目录，约 3444×1936、17 秒、约 515 帧。视频概念上将动作组织为时间切片；本次复盘确认参考片段不是网页滚动播放器，因此只借鉴其主体稳定、连续过渡和残影关系，不把滚动控制接回 `frameFloat`。网页端继续使用固定相机转台响应用户拖拽旋转。
 
 ## 3. 已确定的技术方案
 
 当前网页采用切片优先方案：
 
-1. `frame-001.png` 至 `frame-091.png`：Blender 按源动画每个整数帧、使用正面跟随采样相机透明渲染得到的 91 张时间切片，用于形成可展开的空间轨迹，也是网页的唯一主体视觉资产。
+1. `frame-001.png` 至 `frame-166.png`：Blender 按源动画每个整数帧透明渲染得到的 166 张时间切片，用于形成可展开的空间轨迹，也是网页的唯一主体视觉资产。
 2. Three.js：负责透明纹理、切片卡片、相机、统一转台和交互；不加载实时 GLB，不创建 `AnimationMixer`。
 3. `flower.glb`：导出脚本生成的可选检查资产，保留在仓库中但不被主界面请求。
 4. `focusLayer`：负责固定在视觉中心的当前/下一帧交叉淡化、主焦点微光与播放轨迹残影；固定时间轴切片只负责展开后的空间结构。
 5. CSS：负责页面渐变、雾光、信息层、布局和移动端适配。
 
-当前蝴蝶时间采样规则（源动画 1–91 帧）：
+当前兰花时间采样规则（源动画 1–166 帧）：
 
 ```js
-sampleFrame(i) = i + 1, i ∈ [0, 90]
+sampleFrame(i) = i + 1, i ∈ [0, 165]
 ```
 
 页面状态由以下数据驱动：
 
 ```ts
 type TimeSliceState = {
-  frameFloat: number;     // 0–90
+  frameFloat: number;     // 0–165
   spread: number;         // 0–1
   yaw: number;
   pitch: number;
@@ -159,19 +157,17 @@ type TimeSliceState = {
 ## 4. 工程结构
 
 ```text
-Shuttle/
-├─ Source/                             本地 Blender 源文件和参考 MP4（Git 忽略）
+rhododendron-time-slices/
 ├─ index.html                         页面结构和作品文案
 ├─ src/
 │  ├─ main.js                         Three.js 场景、动画和交互
 │  └─ style.css                       粉彩视觉、布局、响应式样式
 ├─ scripts/
-│  ├─ export_blender_assets.py        历史兰花 Alembic→GLB/切片导出脚本
-│  └─ export_butterfly_slices.py     蝴蝶正面跟随相机切片导出脚本
+│  └─ export_blender_assets.py        Blender Alembic→GLB/切片自动导出脚本
 ├─ public/assets/
 │  ├─ flower.glb                       可选导出检查资产，主界面不加载
-│  ├─ slice-manifest.json              91 帧清单
-│  └─ slices/frame-001.png … 091.png  透明时间切片
+│  ├─ slice-manifest.json              166 帧清单
+│  └─ slices/frame-001.png … 166.png  透明时间切片
 ├─ package.json
 ├─ package-lock.json
 ├─ README.md
@@ -198,9 +194,11 @@ Shuttle/
 
 ## 6. 已知限制与处理方式
 
-- 蝴蝶源文件包含路径动作和翅膀动作；正面导出脚本逐帧跟随动画节点本地 `-X` 轴，不依赖源相机动画。
-- 蝴蝶源 `.blend` 不进入 Git 或网页运行时；如果换机器，需要提供同名源文件和 Blender 5 环境后重新导出。
-- 当前网页不加载历史 `flower.glb`，只使用 91 张蝴蝶透明 PNG；如果未来再次启用实时模型，需要重新建立独立的运行时决策并评估首屏性能。
+- 兰花源文件不是骨骼动画，而是依赖外部 Alembic MeshSequenceCache。导出脚本已将每个采样帧烘焙为 shape key，并建立 `Orchid_Time_Slices` morph animation；重新导出时必须提供 `OrchidMeshGrp.abc`。
+- Alembic 缓存约 106 MB，不进入 Git 或网页运行时；如果换机器，需要重新提供缓存路径。
+- Blender 原相机无动画；当前网页使用固定相机与统一转台实现视角旋转，不依赖 Blender 相机动画。
+- 源相机原始构图无法覆盖兰花完全展开后的姿态；导出脚本通过扫描所有评估帧，调整焦距与镜头 shift，将联合投影范围限制在约 0.08–0.92。若未来更换模型或动画，必须重新执行该安全构图检查。
+- 当前网页不加载 `flower.glb`，只使用 166 张透明 PNG；如果未来再次启用实时模型，需要重新建立独立的运行时决策并评估首屏性能。
 - 播放中的历史切片不是被删除或隐藏；它们始终保留在 Three.js 渲染树中，并按距离透明度参与完整时间轨迹。扩大到 ±90° 的俯仰意味着接近极点时会出现正常的极限视角变化，边界限制仍阻止超出范围。
 - 时间切片使用 RGBA PNG，而不是直接使用视频帧，以保留透明边缘并避免把 3444×1936 的视频帧全部带入网页。
 - 目前没有加入重型后处理 Bloom，主要使用渐变、透明材质、当前帧加法微光、边缘线、雾光、粒子和轨道光环完成视觉；如性能允许，后续才评估桌面端轻量 Bloom。
@@ -218,7 +216,7 @@ npm run dev
 重新从 Blender 生成运行资产：
 
 ```powershell
-& 'F:\Blender\blender.exe' --background "$PWD\Source\BUTTERFLY_FLAP_FAST_FOLLOW_PATH_1.blend" --python '.\scripts\export_butterfly_slices.py' -- "$PWD\public\assets"
+& 'F:\Blender\blender.exe' --background --factory-startup 'C:\Users\Administrator\Desktop\Free\兰花_形态1.blend' --python '.\scripts\export_blender_assets.py' -- "$PWD\public\assets" 'C:\Users\Administrator\Desktop\Verminoble\blender_scenebench\blender_modelbench\兰花\形态1\alembic\alembic\OrchidMeshGrp.abc'
 ```
 
 生产构建：
@@ -233,8 +231,8 @@ npm run preview
 提交或部署前至少确认：
 
 - `npm run build` 成功。
-- `slice-manifest.json` 与 91 张 PNG 没有 404；网页不应请求 `flower.glb`。
-- 重新导出后所有 PNG 的 Alpha 包围盒都不能触碰 768×768 画布边缘；至少检查蝴蝶首帧、中段和尾帧，并确认正面主体位于卡片安全区域内。
+- `slice-manifest.json` 与 166 张 PNG 没有 404；网页不应请求 `flower.glb`。
+- 重新导出后所有 PNG 的 Alpha 包围盒都不能触碰 768×768 画布边缘；至少检查首帧、中段和尾帧，并确认主体位于卡片安全区域内。
 - 左键长按从当前帧正向播放，右键长按从当前帧倒放，松开立即暂停，到达对应边界后停留，再次长按从相应起点重新播放。
 - 滚轮向上放大、向下缩小主体，缩放响应更快、仍保持平滑且不改变当前帧、旋转和展开状态；最近距离 3 时达到参考图的主体聚焦尺度，同时继续以当前时间切片为焦点。
 - 切片可以完全收拢、展开，并支持中途反向拖拽；完全收拢时当前时间切片仍保持可见。

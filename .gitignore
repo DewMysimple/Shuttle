@@ -9,4 +9,3 @@ public/assets/slices/*.webp
 
 # Local Blender source and reference videos; runtime assets are exported separately.
 /Source/*
-!/Source/README.md
