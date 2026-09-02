@@ -2,15 +2,26 @@
   "count": 91,
   "sourceFrameStart": 1,
   "sourceFrameEnd": 91,
-  "animationType": "blender-action-sampled-png",
-  "view": "tracked-front",
+  "animationType": "blender-action-every-frame-static-png",
+  "sampleMode": "every-integer-frame",
+  "view": "fixed-top-front",
+  "cameraType": "orthographic",
   "cameraDistance": 14,
+  "cameraOrthoScale": 7,
+  "cameraTarget": "display-body-bounds-center",
+  "displayPlane": "xz-horizontal",
+  "timelineAxis": "y",
   "sourceScene": "ARTIST_EDIT",
+  "sourceFile": "BUTTERFLY_FLAP_FAST_FOLLOW_PATH_1_WING_FLAP_ONLY.blend",
   "sourceObjects": [
     "展示_BUTTERFLY_FLAP_FAST_FOLLOW_PATH_1_源_FBX_01_01_BASIC_BUTTERFLY_BODY_Travis_Davids_OBJ_1",
     "展示_BUTTERFLY_FLAP_FAST_FOLLOW_PATH_1_源_FBX_01_05_BUTTERFLY_FAST__FLAP_FOLLOW_PATH__left_wing_",
     "展示_BUTTERFLY_FLAP_FAST_FOLLOW_PATH_1_源_FBX_01_06_BUTTERFLY_FAST__FLAP_FOLLOW_PATH__right_wing__Copy_"
   ],
+  "alphaCleanup": {
+    "coreThreshold": 0.45,
+    "coreDilationPixels": 6
+  },
   "frames": [
     {
       "index": 0,

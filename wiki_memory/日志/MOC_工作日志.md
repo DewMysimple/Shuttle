@@ -3,7 +3,7 @@ type: moc
 status: active
 kind: process
 importance: high
-updated: 2026-09-01
+updated: 2026-09-02
 topic: work-log-index
 source_logs: []
 supersedes: null
@@ -15,6 +15,7 @@ supersedes: null
 
 | 时间 | 类型 | 目标 | 状态 | 主题 | 日志 |
 | --- | --- | --- | --- | --- | --- |
+| 2026-09-02 | feature | - | archived | true-horizontal-time-slice-shuttle-rebuild | [[日志/2026-09-02-真实水平时间切片穿梭重构.md|2026-09-02｜真实水平时间切片穿梭重构]] |
 | 2026-09-01 | feature | - | archived | butterfly-front-time-slice-sampling | [[日志/2026-09-01-蝴蝶正面时间切片采样.md|蝴蝶正面时间切片采样]] |
 | 2026-09-01 | maintenance | - | archived | source-directory-migration | [[日志/2026-09-01-源素材目录迁移与Source管理.md|源素材目录迁移与 Source 管理]] |
 | 2026-08-31 | ui | - | archived | spacing-view-speed-and-collapse-focus | [[日志/2026-08-31-间距视角速度与收拢基准调整.md|间距、视角速度与收拢基准调整]] |
