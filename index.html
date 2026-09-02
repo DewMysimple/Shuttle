@@ -24,8 +24,19 @@
           <canvas
             id="scene"
             tabindex="0"
-            aria-label="蝴蝶时间切片场景。普通滚轮逐帧穿梭；中心区域左键向外拖拽展开；原生三维控制使用左键旋转、右键平移和中键缩放；按住 Control 或 Command 滚轮缩放。"
+            aria-label="蝴蝶三维时间切片视口。像 Blender 一样使用中键旋转、Shift 加中键平移、滚轮缩放；也可左键旋转、右键平移。Alt 加滚轮逐帧穿梭，Alt 加左键径向拖拽调整层距。"
           ></canvas>
+
+          <nav class="viewport-controls" aria-label="三维视图预设">
+            <span class="viewport-controls__label">3D viewport</span>
+            <div class="viewport-controls__grid">
+              <button type="button" data-view-preset="perspective" aria-pressed="true">透视</button>
+              <button type="button" data-view-preset="front" aria-pressed="false">前</button>
+              <button type="button" data-view-preset="side" aria-pressed="false">侧</button>
+              <button type="button" data-view-preset="frame" aria-pressed="false">当前帧</button>
+            </div>
+            <p><kbd>MMB</kbd> 旋转 · <kbd>Shift</kbd> + <kbd>MMB</kbd> 平移 · 滚轮缩放</p>
+          </nav>
 
           <div class="loading-panel" id="loading-panel" role="status" aria-live="polite">
             <div class="loading-panel__topline">
@@ -57,17 +68,17 @@
             <button class="playback-button playback-button--quiet" id="jump-start" type="button" aria-label="穿梭到首帧">01</button>
             <button class="playback-button playback-button--quiet" id="jump-end" type="button" aria-label="穿梭到尾帧">91</button>
             <span class="control-rule" aria-hidden="true"></span>
-            <button class="playback-button playback-button--quiet" id="reset-view" type="button" aria-label="恢复原生三维视角">3D</button>
+            <button class="playback-button playback-button--quiet" id="reset-view" type="button" aria-label="框显全部时间切片">全景</button>
           </nav>
 
           <footer class="stage-footer">
             <div class="stage-footer__instruction">
               <span class="gesture-icon" aria-hidden="true"><i></i></span>
-              <span>滚轮逐帧穿梭</span>
+              <span>Blender 导航：中键旋转・Shift + 中键平移・滚轮缩放</span>
               <span class="instruction-separator">/</span>
-              <span>中心左键向外展开</span>
+              <span>Alt + 滚轮逐帧穿梭</span>
               <span class="instruction-separator">/</span>
-              <span>原生 3D：左旋转・右平移・中缩放</span>
+              <span>Alt + 左键径向拖拽层距</span>
             </div>
             <button class="expand-button" id="expand-button" type="button" aria-pressed="false">
               展开 91 帧
