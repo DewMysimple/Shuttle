@@ -24,7 +24,7 @@
           <canvas
             id="scene"
             tabindex="0"
-            aria-label="蝴蝶时间切片场景。滚轮逐帧穿梭，左键径向拖拽展开或收拢，右键拖拽检查侧视角，按住 Control 或 Command 滚轮缩放。"
+            aria-label="蝴蝶时间切片场景。普通滚轮逐帧穿梭；中心区域左键向外拖拽展开；原生三维控制使用左键旋转、右键平移和中键缩放；按住 Control 或 Command 滚轮缩放。"
           ></canvas>
 
           <div class="loading-panel" id="loading-panel" role="status" aria-live="polite">
@@ -56,6 +56,8 @@
             <span class="control-rule" aria-hidden="true"></span>
             <button class="playback-button playback-button--quiet" id="jump-start" type="button" aria-label="穿梭到首帧">01</button>
             <button class="playback-button playback-button--quiet" id="jump-end" type="button" aria-label="穿梭到尾帧">91</button>
+            <span class="control-rule" aria-hidden="true"></span>
+            <button class="playback-button playback-button--quiet" id="reset-view" type="button" aria-label="恢复原生三维视角">3D</button>
           </nav>
 
           <footer class="stage-footer">
@@ -63,9 +65,9 @@
               <span class="gesture-icon" aria-hidden="true"><i></i></span>
               <span>滚轮逐帧穿梭</span>
               <span class="instruction-separator">/</span>
-              <span>左键径向拖拽展开</span>
+              <span>中心左键向外展开</span>
               <span class="instruction-separator">/</span>
-              <span>右键拖拽侧视</span>
+              <span>原生 3D：左旋转・右平移・中缩放</span>
             </div>
             <button class="expand-button" id="expand-button" type="button" aria-pressed="false">
               展开 91 帧

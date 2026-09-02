@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import './style.css';
 
 const FRAME_URL = (index) => `/assets/slices/frame-${String(index + 1).padStart(3, '0')}.png`;
@@ -9,10 +10,10 @@ const CARD_SIZE = 3.16;
 const PLAYBACK_FPS = 18;
 const SHUTTLE_SMOOTHING = 18;
 const SPREAD_SMOOTHING = 8;
-const ORBIT_SMOOTHING = 13;
 const CAMERA_SMOOTHING = 11;
-const MAX_PITCH = THREE.MathUtils.degToRad(55);
-const MAX_YAW = THREE.MathUtils.degToRad(78);
+const AUTO_COMPACT_TILT = THREE.MathUtils.degToRad(2.5);
+const AUTO_EXPANDED_TILT = THREE.MathUtils.degToRad(68);
+const EXPANSION_GESTURE_RADIUS = 0.2;
 
 const canvas = document.querySelector('#scene');
 const stage = document.querySelector('.slice-stage');
@@ -27,6 +28,7 @@ const timelineProgress = document.querySelector('#timeline-progress');
 const playButtons = [...document.querySelectorAll('[data-playback-direction]')];
 const jumpStartButton = document.querySelector('#jump-start');
 const jumpEndButton = document.querySelector('#jump-end');
+const resetViewButton = document.querySelector('#reset-view');
 
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const isSmallViewport = window.matchMedia('(max-width: 760px)').matches;
@@ -37,18 +39,16 @@ const state = {
   shuttleTarget: 0,
   spread: 0,
   spreadTarget: 0,
-  yaw: 0,
-  yawTarget: 0,
-  pitch: 0,
-  pitchTarget: 0,
   zoomOffset: 0,
   zoomOffsetTarget: 0,
   isPlaying: false,
   playbackDirection: 1,
+  previewTilt: null,
 };
 
 const pointer = {
   active: false,
+  pending: false,
   id: null,
   mode: null,
   startX: 0,
@@ -78,6 +78,23 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.08;
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, isSmallViewport ? 1.3 : 1.8));
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = !prefersReducedMotion;
+controls.dampingFactor = 0.085;
+controls.enablePan = true;
+controls.enableZoom = true;
+controls.screenSpacePanning = true;
+controls.minDistance = 2.8;
+controls.maxDistance = 120;
+controls.minPolarAngle = 0.02;
+controls.maxPolarAngle = Math.PI - 0.02;
+camera.up.set(0, 1, 0);
+
+let cameraMode = 'auto';
+let nativeControlActive = false;
+let lastFocusY = 0;
+let hasCameraState = false;
 
 const timelineRoot = new THREE.Group();
 const atmosphereRoot = new THREE.Group();
@@ -142,6 +159,17 @@ function setStageStatus(value) {
   lastStatus = value;
   stageStatus.textContent = value;
 }
+
+controls.addEventListener('start', () => {
+  cameraMode = 'user';
+  nativeControlActive = true;
+  stage.classList.add('is-orbiting');
+});
+
+controls.addEventListener('end', () => {
+  nativeControlActive = false;
+  stage.classList.remove('is-orbiting');
+});
 
 function syncPlaybackButtons() {
   playButtons.forEach((button) => {
@@ -250,6 +278,65 @@ function configureTexture(texture) {
   texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   texture.needsUpdate = true;
   return texture;
+}
+
+function getCameraLayout() {
+  const step = currentStep();
+  const railLength = Math.max(0.001, (sliceCount - 1) * step);
+  const selectedY = state.shuttle * step;
+  const railMidpoint = railLength / 2;
+  const overviewBlend = smoothstep(0.46, 0.94, state.spread);
+  return {
+    focusY: THREE.MathUtils.lerp(selectedY, railMidpoint, overviewBlend),
+    overviewBlend,
+  };
+}
+
+function getAutomaticTilt(overviewBlend) {
+  if (state.previewTilt !== null) return state.previewTilt;
+  return THREE.MathUtils.lerp(AUTO_COMPACT_TILT, AUTO_EXPANDED_TILT, overviewBlend);
+}
+
+function getAutomaticCameraPosition(focusY, overviewBlend) {
+  const compactDistance = isSmallViewport ? 10.6 : 6.9;
+  const expandedDistance = isSmallViewport ? 72 : 54;
+  const distance = THREE.MathUtils.lerp(compactDistance, expandedDistance, overviewBlend)
+    + state.zoomOffset;
+  const tilt = getAutomaticTilt(overviewBlend);
+  const target = new THREE.Vector3(0, focusY, 0);
+  const offset = new THREE.Vector3(
+    0,
+    Math.cos(tilt) * distance,
+    Math.sin(tilt) * distance,
+  );
+  return { target, position: target.clone().add(offset) };
+}
+
+function applyAutomaticCamera(focusY, overviewBlend, delta, immediate = false) {
+  const { target, position } = getAutomaticCameraPosition(focusY, overviewBlend);
+  const blend = immediate || prefersReducedMotion
+    ? 1
+    : 1 - Math.exp(-CAMERA_SMOOTHING * delta);
+  controls.target.lerp(target, blend);
+  camera.position.lerp(position, blend);
+  camera.up.set(0, 1, 0);
+  camera.lookAt(controls.target);
+  controls.update();
+}
+
+function resetCameraView() {
+  state.previewTilt = null;
+  state.zoomOffset = 0;
+  state.zoomOffsetTarget = 0;
+  cameraMode = 'auto';
+  nativeControlActive = false;
+  stage.classList.remove('is-orbiting');
+  if (sliceCount) {
+    const { focusY, overviewBlend } = getCameraLayout();
+    applyAutomaticCamera(focusY, overviewBlend, 0, true);
+    lastFocusY = focusY;
+    hasCameraState = true;
+  }
 }
 
 async function loadTextures(count) {
@@ -372,8 +459,6 @@ function updatePlayback(delta) {
 function updateTimeline(delta) {
   state.shuttle = damp(state.shuttle, state.shuttleTarget, SHUTTLE_SMOOTHING, delta);
   state.spread = damp(state.spread, state.spreadTarget, SPREAD_SMOOTHING, delta);
-  state.yaw = damp(state.yaw, state.yawTarget, ORBIT_SMOOTHING, delta);
-  state.pitch = damp(state.pitch, state.pitchTarget, ORBIT_SMOOTHING, delta);
   state.zoomOffset = damp(state.zoomOffset, state.zoomOffsetTarget, CAMERA_SMOOTHING, delta);
 
   const step = currentStep();
@@ -415,24 +500,21 @@ function updateTimeline(delta) {
     tick.material.opacity = 0.26 * overviewBlend;
   });
 
-  const compactDistance = isSmallViewport ? 10.6 : 6.9;
-  const expandedDistance = isSmallViewport ? 72 : 54;
-  const cameraDistance = THREE.MathUtils.lerp(compactDistance, expandedDistance, overviewBlend)
-    + state.zoomOffset;
-  const automaticTilt = overviewBlend * THREE.MathUtils.degToRad(68);
-  const tilt = clamp(automaticTilt + state.yaw, -THREE.MathUtils.degToRad(82), THREE.MathUtils.degToRad(82));
-  const azimuth = state.pitch;
-  const target = new THREE.Vector3(0, focusY, 0);
-  const cameraOffset = new THREE.Vector3(
-    Math.sin(tilt) * Math.sin(azimuth),
-    Math.cos(tilt),
-    Math.sin(tilt) * Math.cos(azimuth),
-  ).multiplyScalar(cameraDistance);
-  camera.position.copy(target).add(cameraOffset);
-  const forward = target.clone().sub(camera.position).normalize();
-  const right = new THREE.Vector3(Math.cos(azimuth), 0, -Math.sin(azimuth));
-  camera.up.copy(right.cross(forward).normalize());
-  camera.lookAt(target);
+  if (!hasCameraState) {
+    lastFocusY = focusY;
+    hasCameraState = true;
+  }
+  if (cameraMode === 'auto') {
+    applyAutomaticCamera(focusY, overviewBlend, delta);
+  } else {
+    const focusDelta = focusY - lastFocusY;
+    if (Math.abs(focusDelta) > 0.00001) {
+      camera.position.y += focusDelta;
+      controls.target.y += focusDelta;
+    }
+    controls.update();
+  }
+  lastFocusY = focusY;
 
   if (selectedFrame !== lastDisplayedFrame) {
     lastDisplayedFrame = selectedFrame;
@@ -440,8 +522,8 @@ function updateTimeline(delta) {
   }
   timelineProgress.style.width = `${sliceCount > 1 ? (state.shuttle / (sliceCount - 1)) * 100 : 0}%`;
 
-  if (pointer.mode === 'orbit') setStageStatus('侧视检查');
-  else if (pointer.mode === 'spread') setStageStatus('调整时间间距');
+  if (pointer.mode === 'spread') setStageStatus('调整时间间距');
+  else if (nativeControlActive) setStageStatus('原生三维控制');
   else if (state.isPlaying) setStageStatus('沿轨道穿梭');
   else if (overviewBlend > 0.7) setStageStatus('91 帧实体总览');
   else setStageStatus('X-Y 平面正视');
@@ -466,11 +548,44 @@ function radialDistance(clientX, clientY) {
   return Math.hypot(dx, dy);
 }
 
-function beginPointer(event) {
-  if (!sliceCount || pointer.active) return;
+function isExpansionGesture(event) {
+  if (event.button !== 0 || event.pointerType === 'touch') return false;
+  if (event.altKey) return true;
+  const rect = canvas.getBoundingClientRect();
+  const radius = radialDistance(event.clientX, event.clientY);
+  return radius <= Math.min(rect.width, rect.height) * EXPANSION_GESTURE_RADIUS;
+}
+
+function radialMotion(event) {
+  const rect = canvas.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  const startX = pointer.startX - centerX;
+  const startY = pointer.startY - centerY;
+  const moveX = event.clientX - pointer.startX;
+  const moveY = event.clientY - pointer.startY;
+  if (pointer.startRadius < 16) return Math.hypot(moveX, moveY);
+  return (moveX * startX + moveY * startY) / pointer.startRadius;
+}
+
+function activateSpreadGesture(event) {
   pointer.active = true;
+  pointer.pending = false;
+  pointer.mode = 'spread';
+  controls.enabled = false;
+  cameraMode = 'auto';
+  nativeControlActive = false;
+  stage.classList.remove('is-orbiting');
+  stage.classList.add('is-expanding');
+  canvas.setPointerCapture(event.pointerId);
+}
+
+function beginPointer(event) {
+  if (!sliceCount || pointer.active || !isExpansionGesture(event)) return;
   pointer.id = event.pointerId;
-  pointer.mode = event.button === 2 || event.altKey ? 'orbit' : 'spread';
+  pointer.pending = !event.altKey;
+  pointer.active = false;
+  pointer.mode = null;
   pointer.startX = event.clientX;
   pointer.startY = event.clientY;
   pointer.lastX = event.clientX;
@@ -478,48 +593,67 @@ function beginPointer(event) {
   pointer.startRadius = radialDistance(event.clientX, event.clientY);
   pointer.startSpread = state.spreadTarget;
   stopPlayback();
-  canvas.setPointerCapture(event.pointerId);
-  stage.classList.toggle('is-orbiting', pointer.mode === 'orbit');
-  stage.classList.toggle('is-expanding', pointer.mode === 'spread');
-  event.preventDefault();
+  if (event.altKey) {
+    activateSpreadGesture(event);
+    event.preventDefault();
+  }
 }
 
 function movePointer(event) {
-  if (!pointer.active || pointer.id !== event.pointerId) return;
-  const rect = canvas.getBoundingClientRect();
-  if (pointer.mode === 'orbit') {
-    const dx = event.clientX - pointer.lastX;
-    const dy = event.clientY - pointer.lastY;
-    state.yawTarget = clamp(state.yawTarget - (dx / rect.width) * Math.PI * 1.8, -MAX_YAW, MAX_YAW);
-    state.pitchTarget = clamp(state.pitchTarget + (dy / rect.height) * Math.PI * 1.25, -MAX_PITCH, MAX_PITCH);
-  } else {
-    const radiusDelta = radialDistance(event.clientX, event.clientY) - pointer.startRadius;
-    state.spreadTarget = clamp(
-      pointer.startSpread + radiusDelta / (Math.min(rect.width, rect.height) * 0.31),
-      0,
-      1,
-    );
-    syncExpandButton();
+  if (pointer.id !== event.pointerId) return;
+  if (pointer.pending && !pointer.active) {
+    const movement = Math.hypot(event.clientX - pointer.startX, event.clientY - pointer.startY);
+    const outwardMotion = radialMotion(event);
+    if (movement < 8 || Math.abs(outwardMotion) < 10) return;
+    activateSpreadGesture(event);
   }
+  if (!pointer.active) return;
+  const rect = canvas.getBoundingClientRect();
+  const radiusDelta = radialDistance(event.clientX, event.clientY) - pointer.startRadius;
+  state.spreadTarget = clamp(
+    pointer.startSpread + radiusDelta / (Math.min(rect.width, rect.height) * 0.31),
+    0,
+    1,
+  );
+  syncExpandButton();
   pointer.lastX = event.clientX;
   pointer.lastY = event.clientY;
+  event.stopImmediatePropagation();
   event.preventDefault();
 }
 
 function endPointer(event) {
-  if (!pointer.active || pointer.id !== event.pointerId) return;
-  if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+  if ((!pointer.active && !pointer.pending) || pointer.id !== event.pointerId) return;
+  if (pointer.active && canvas.hasPointerCapture(event.pointerId)) {
+    canvas.releasePointerCapture(event.pointerId);
+  }
+  if (pointer.active) controls.enabled = true;
   pointer.active = false;
+  pointer.pending = false;
   pointer.id = null;
   pointer.mode = null;
-  stage.classList.remove('is-orbiting', 'is-expanding');
+  stage.classList.remove('is-expanding');
+}
+
+function dollyUserCamera(deltaY) {
+  const offset = camera.position.clone().sub(controls.target);
+  const distance = offset.length();
+  if (!distance) return;
+  const nextDistance = clamp(distance + deltaY * 0.008, controls.minDistance, controls.maxDistance);
+  camera.position.copy(controls.target).add(offset.normalize().multiplyScalar(nextDistance));
+  controls.update();
 }
 
 function handleWheel(event) {
   if (!sliceCount) return;
   event.preventDefault();
+  event.stopImmediatePropagation();
   if (event.ctrlKey || event.metaKey) {
-    state.zoomOffsetTarget = clamp(state.zoomOffsetTarget + event.deltaY * 0.008, -2.2, 5.5);
+    if (cameraMode === 'auto') {
+      state.zoomOffsetTarget = clamp(state.zoomOffsetTarget + event.deltaY * 0.008, -2.2, 5.5);
+    } else {
+      dollyUserCamera(event.deltaY);
+    }
     return;
   }
   const now = performance.now();
@@ -542,9 +676,7 @@ function handleKeydown(event) {
     state.spreadTarget = state.spreadTarget >= 0.5 ? 0 : 1;
     syncExpandButton();
   } else if (event.key.toLowerCase() === 'r') {
-    state.yawTarget = 0;
-    state.pitchTarget = 0;
-    state.zoomOffsetTarget = 0;
+    resetCameraView();
   } else if (event.code === 'Space') {
     startPlayback(1);
   } else {
@@ -562,12 +694,12 @@ function resize() {
 }
 
 function bindEvents() {
-  canvas.addEventListener('pointerdown', beginPointer);
-  canvas.addEventListener('pointermove', movePointer);
-  canvas.addEventListener('pointerup', endPointer);
-  canvas.addEventListener('pointercancel', endPointer);
+  canvas.addEventListener('pointerdown', beginPointer, { capture: true });
+  canvas.addEventListener('pointermove', movePointer, { capture: true });
+  canvas.addEventListener('pointerup', endPointer, { capture: true });
+  canvas.addEventListener('pointercancel', endPointer, { capture: true });
   canvas.addEventListener('contextmenu', (event) => event.preventDefault());
-  canvas.addEventListener('wheel', handleWheel, { passive: false });
+  canvas.addEventListener('wheel', handleWheel, { capture: true, passive: false });
   canvas.addEventListener('keydown', handleKeydown);
   window.addEventListener('resize', resize);
 
@@ -576,6 +708,10 @@ function bindEvents() {
   });
   jumpStartButton.addEventListener('click', () => jumpToFrame(0));
   jumpEndButton.addEventListener('click', () => jumpToFrame(sliceCount - 1));
+  resetViewButton.addEventListener('click', () => {
+    resetCameraView();
+    canvas.focus({ preventScroll: true });
+  });
   expandButton.addEventListener('click', () => {
     state.spreadTarget = state.spreadTarget >= 0.5 ? 0 : 1;
     syncExpandButton();
@@ -628,9 +764,12 @@ async function initialise() {
       syncExpandButton();
     }
     if (Number.isFinite(previewYaw)) {
-      state.yaw = clamp(THREE.MathUtils.degToRad(previewYaw), -MAX_YAW, MAX_YAW);
-      state.yawTarget = state.yaw;
+      state.previewTilt = clamp(THREE.MathUtils.degToRad(previewYaw), -THREE.MathUtils.degToRad(82), THREE.MathUtils.degToRad(82));
     }
+    const { focusY, overviewBlend } = getCameraLayout();
+    applyAutomaticCamera(focusY, overviewBlend, 0, true);
+    lastFocusY = focusY;
+    hasCameraState = true;
     setLoading(1, '真实时间轨道已就绪');
     loadingPanel.classList.add('is-complete');
     window.setTimeout(() => { loadingPanel.hidden = true; }, 700);
