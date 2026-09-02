@@ -7,34 +7,22 @@ const CARD_WIDTH = 2.15;
 const CARD_HEIGHT = 1.72;
 const IMAGE_WIDTH = 1.92;
 const IMAGE_HEIGHT = 1.54;
-const SLICE_DEPTH_STEP = 1;
+const DEPTH_STEP = 0.3;
+const LATERAL_STEP = 0.16;
 const DRAG_DEADZONE = 8;
 const LONG_PRESS_DELAY = 260;
 const PLAYBACK_FPS = 30;
-const YAW_PER_VIEWPORT = Math.PI * 2.2;
-const PITCH_PER_VIEWPORT = THREE.MathUtils.degToRad(120);
-const PITCH_LIMIT = THREE.MathUtils.degToRad(90);
-const ROTATION_DRAG_SMOOTHING = 18;
-const ROTATION_RELEASE_SMOOTHING = 10;
-const CAMERA_ZOOM_SMOOTHING = 11;
-const CAMERA_ZOOM_SENSITIVITY = 0.011;
-const CAMERA_MIN_DISTANCE = 3;
+const YAW_PER_VIEWPORT = Math.PI * 1.6;
+const PITCH_PER_VIEWPORT = THREE.MathUtils.degToRad(84);
+const PITCH_LIMIT = THREE.MathUtils.degToRad(36);
+const ROTATION_DRAG_SMOOTHING = 11;
+const ROTATION_RELEASE_SMOOTHING = 7;
+const CAMERA_ZOOM_SMOOTHING = 8;
+const CAMERA_ZOOM_SENSITIVITY = 0.008;
+const CAMERA_MIN_DISTANCE = 5.2;
 const CAMERA_MAX_DISTANCE = 15.5;
-const CAMERA_FOCUS_Y = 0.04;
-const CAMERA_EYE_HEIGHT_OFFSET = 0.75;
-const FOCUS_GLOW_BASE = 0.108;
-const FOCUS_GLOW_BREATH = 0.024;
-const FOCUS_GLOW_CYCLE = 1.7;
-const FOCUS_TRAIL_COUNT = 5;
-const FOCUS_TRAIL_FRAME_STEP = 3;
-const FOCUS_TRAIL_SPACING = 0.09;
-const FOCUS_TRAIL_DEPTH_STEP = 0.085;
-const PLAYBACK_CURSOR_DECAY = 4.5;
-const PLAYBACK_CURSOR_CORE_DECAY = 1.35;
-const PLAYBACK_BLEND_SMOOTHING = 9;
 
 const canvas = document.querySelector('#scene');
-const stage = document.querySelector('.slice-stage');
 const frameCounter = document.querySelector('#frame-counter');
 const stageStatus = document.querySelector('#stage-status');
 const loadingPanel = document.querySelector('#loading-panel');
@@ -83,9 +71,9 @@ const cameraZoom = {
   current: defaultCameraDistance,
   target: defaultCameraDistance,
 };
-const cameraFocusPoint = new THREE.Vector3(0, CAMERA_FOCUS_Y, 0);
-camera.position.set(0, CAMERA_FOCUS_Y + CAMERA_EYE_HEIGHT_OFFSET, defaultCameraDistance);
-camera.lookAt(0, CAMERA_FOCUS_Y, 0);
+const cameraFocusPoint = new THREE.Vector3(0, 0.5, 0);
+camera.position.set(0, 1.25, defaultCameraDistance);
+camera.lookAt(0, 0.5, 0);
 
 const renderer = new THREE.WebGLRenderer({
   canvas,
@@ -113,23 +101,9 @@ rotationRig.add(timeline);
 scene.add(rotationRig);
 
 const slices = [];
-const focusLayer = new THREE.Group();
-const focusTrail = new THREE.Group();
-const focusObjects = {
-  image: null,
-  nextImage: null,
-  glow: null,
-  nextGlow: null,
-};
-const focusTrailPlanes = [];
 let sliceCount = 0;
-let sliceTextures = [];
-let focusReady = false;
-let playbackBlend = 0;
 let lastDisplayedFrame = -1;
 let lastStatus = '';
-
-sliceRoot.add(focusLayer);
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -178,7 +152,6 @@ function setStageStatus(value) {
 }
 
 function syncPlaybackButtons() {
-  stage.classList.toggle('is-playing', state.isPlaying || playbackBlend > 0.02);
   playButtons.forEach((button) => {
     const isActive = state.isPlaying
       && Number(button.dataset.playbackDirection) === state.playbackDirection;
@@ -285,68 +258,29 @@ function updateAtmosphere(elapsed) {
     particleField.material.opacity = 0.17 + Math.sin(elapsed * 0.55) * 0.035;
   });
 
-  atmosphereRings.forEach((ring, index) => {
+  atmosphereRings.forEach((ring) => {
     const { phase, spin } = ring.userData;
     ring.rotation.x += Math.sin(elapsed * 0.23 + phase) * 0.0008;
     ring.rotation.y += spin * 0.002;
     ring.rotation.z = Math.sin(elapsed * 0.17 + phase) * 0.07;
     ring.scale.setScalar(1 + Math.sin(elapsed * 0.5 + phase) * 0.025);
-    ring.material.opacity = 0.055
-      + Math.sin(elapsed * 0.7 + phase) * 0.018
-      + playbackBlend * (0.022 - index * 0.004);
+    ring.material.opacity = 0.055 + Math.sin(elapsed * 0.7 + phase) * 0.018;
   });
 
-  atmosphereHalos.forEach((halo, index) => {
+  atmosphereHalos.forEach((halo) => {
     const { phase } = halo.userData;
     halo.scale.setScalar(1 + Math.sin(elapsed * 0.32 + phase) * 0.045);
-    halo.material.opacity = 0.028
-      + Math.sin(elapsed * 0.48 + phase) * 0.009
-      + playbackBlend * (0.032 - index * 0.008);
+    halo.material.opacity = 0.028 + Math.sin(elapsed * 0.48 + phase) * 0.009;
   });
-}
-
-function createGradedImageMaterial(texture, opacity = 0) {
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 4);
-
-  const imageMaterial = new THREE.MeshBasicMaterial({
-    map: texture,
-    transparent: true,
-    opacity,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-    toneMapped: false,
-  });
-  imageMaterial.onBeforeCompile = (shader) => {
-    shader.uniforms.sliceSaturation = { value: 1.12 };
-    shader.uniforms.sliceContrast = { value: 1.04 };
-    shader.uniforms.sliceWarmth = { value: 0 };
-    imageMaterial.userData.shader = shader;
-    shader.fragmentShader = shader.fragmentShader.replace(
-      'void main() {',
-      `uniform float sliceSaturation;
-uniform float sliceContrast;
-uniform float sliceWarmth;
-
-void main() {`,
-    );
-    shader.fragmentShader = shader.fragmentShader.replace(
-      'vec3 outgoingLight = reflectedLight.indirectDiffuse;',
-      `vec3 outgoingLight = reflectedLight.indirectDiffuse;
-  float sliceLuminance = dot(outgoingLight, vec3(0.299, 0.587, 0.114));
-  outgoingLight = mix(vec3(sliceLuminance), outgoingLight, sliceSaturation);
-  outgoingLight = (outgoingLight - 0.5) * sliceContrast + 0.5;
-  vec3 coralLift = outgoingLight * vec3(1.14, 0.88, 0.93);
-  outgoingLight = mix(outgoingLight, coralLift, sliceWarmth);`,
-    );
-  };
-  return imageMaterial;
 }
 
 function createSlice(texture, index) {
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 4);
+
   const group = new THREE.Group();
   const cardMaterial = new THREE.MeshBasicMaterial({
-    color: index % 3 === 0 ? 0xffb6bd : index % 3 === 1 ? 0xc8b4f2 : 0xffd38f,
+    color: index % 3 === 0 ? 0xffd5cf : index % 3 === 1 ? 0xdcccf4 : 0xffedc8,
     transparent: true,
     opacity: 0,
     depthWrite: false,
@@ -368,108 +302,42 @@ function createSlice(texture, index) {
   outline.position.z = -0.03;
   outline.renderOrder = 12;
 
-  const imageMaterial = createGradedImageMaterial(texture);
-  const image = new THREE.Mesh(new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT), imageMaterial);
-  image.position.z = 0.02;
-  image.renderOrder = 11;
-
-  const glowMaterial = new THREE.MeshBasicMaterial({
+  const imageMaterial = new THREE.MeshBasicMaterial({
     map: texture,
-    color: 0xff5f70,
     transparent: true,
     opacity: 0,
     depthWrite: false,
     side: THREE.DoubleSide,
-    blending: THREE.AdditiveBlending,
     toneMapped: false,
   });
-  const glow = new THREE.Mesh(new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT), glowMaterial);
-  glow.position.z = 0.006;
-  glow.renderOrder = 10.5;
+  imageMaterial.onBeforeCompile = (shader) => {
+    shader.uniforms.sliceSaturation = { value: 1.16 };
+    shader.uniforms.sliceContrast = { value: 1.08 };
+    imageMaterial.userData.shader = shader;
+    shader.fragmentShader = shader.fragmentShader.replace(
+      'void main() {',
+      `uniform float sliceSaturation;
+uniform float sliceContrast;
 
-  group.add(card, glow, outline, image);
+void main() {`,
+    );
+    shader.fragmentShader = shader.fragmentShader.replace(
+      'vec3 outgoingLight = reflectedLight.indirectDiffuse;',
+      `vec3 outgoingLight = reflectedLight.indirectDiffuse;
+  float sliceLuminance = dot(outgoingLight, vec3(0.299, 0.587, 0.114));
+  outgoingLight = mix(vec3(sliceLuminance), outgoingLight, sliceSaturation);
+  outgoingLight = (outgoingLight - 0.5) * sliceContrast + 0.5;`,
+    );
+  };
+  const image = new THREE.Mesh(new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT), imageMaterial);
+  image.position.z = 0.02;
+  image.renderOrder = 11;
+
+  group.add(card, outline, image);
   group.position.y = 0.08;
-  group.userData = { index, card, glow, outline, image };
+  group.userData = { index, card, outline, image };
   sliceRoot.add(group);
   slices.push(group);
-}
-
-function createFocusLayer() {
-  if (focusReady || sliceTextures.length === 0) return;
-
-  const focusImage = new THREE.Mesh(
-    new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT),
-    createGradedImageMaterial(sliceTextures[0]),
-  );
-  focusImage.position.z = 0.16;
-  focusImage.renderOrder = 42;
-
-  const nextFocusImage = new THREE.Mesh(
-    new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT),
-    createGradedImageMaterial(sliceTextures[0]),
-  );
-  nextFocusImage.position.z = 0.15;
-  nextFocusImage.renderOrder = 41;
-
-  const focusGlow = new THREE.Mesh(
-    new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT),
-    new THREE.MeshBasicMaterial({
-      map: sliceTextures[0],
-      color: 0xff5f70,
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-      toneMapped: false,
-    }),
-  );
-  focusGlow.position.z = 0.1;
-  focusGlow.renderOrder = 40;
-
-  const nextFocusGlow = new THREE.Mesh(
-    new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT),
-    new THREE.MeshBasicMaterial({
-      map: sliceTextures[0],
-      color: 0xff5f70,
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-      toneMapped: false,
-    }),
-  );
-  nextFocusGlow.position.z = 0.09;
-  nextFocusGlow.renderOrder = 39;
-
-  focusTrailPlanes.push(
-    ...Array.from({ length: FOCUS_TRAIL_COUNT }, (_, index) => {
-      const trail = new THREE.Mesh(
-        new THREE.PlaneGeometry(IMAGE_WIDTH, IMAGE_HEIGHT),
-        new THREE.MeshBasicMaterial({
-          map: sliceTextures[0],
-          transparent: true,
-          opacity: 0,
-          depthWrite: false,
-          side: THREE.DoubleSide,
-          toneMapped: false,
-        }),
-      );
-      trail.position.z = 0.04 - index * 0.004;
-      trail.renderOrder = 30 + index;
-      focusTrail.add(trail);
-      return trail;
-    }),
-  );
-
-  focusObjects.image = focusImage;
-  focusObjects.nextImage = nextFocusImage;
-  focusObjects.glow = focusGlow;
-  focusObjects.nextGlow = nextFocusGlow;
-  focusLayer.add(focusTrail, nextFocusGlow, focusGlow, nextFocusImage, focusImage);
-  focusLayer.visible = true;
-  focusReady = true;
 }
 
 async function loadSlices() {
@@ -498,9 +366,7 @@ async function loadSlices() {
     }),
   );
 
-  sliceTextures = textures;
   textures.forEach(createSlice);
-  createFocusLayer();
 }
 
 function updatePlayback(delta) {
@@ -524,9 +390,10 @@ function updateCamera(delta, elapsed) {
 
   const focusDrift = prefersReducedMotion ? 0 : state.spread;
   cameraFocusPoint.set(
-    Math.sin(elapsed * 0.56) * 0.008 * focusDrift,
-    CAMERA_FOCUS_Y + Math.sin(elapsed * 0.78) * 0.018 * focusDrift,
-    0,
+    Math.sin(elapsed * 0.56 + state.frameFloat * 0.18) * 0.012 * focusDrift,
+    Math.sin(state.frameFloat * 0.33) * 0.03 * state.spread
+      + Math.sin(elapsed * 0.78 + state.frameFloat * 0.24) * 0.028 * focusDrift,
+    -0.55 + Math.cos(elapsed * 0.47 + state.frameFloat * 0.14) * 0.018 * focusDrift,
   );
   sliceRoot.localToWorld(cameraFocusPoint);
   camera.lookAt(cameraFocusPoint);
@@ -541,111 +408,48 @@ function updateRotation(delta) {
   rotationRig.rotation.x = state.pitch;
 }
 
-function updateGradedMaterial(material, saturation, contrast, warmth) {
-  const shader = material.userData.shader;
-  if (!shader) return;
-  shader.uniforms.sliceSaturation.value = saturation;
-  shader.uniforms.sliceContrast.value = contrast;
-  shader.uniforms.sliceWarmth.value = warmth;
-}
-
-function updateFocus(delta, elapsed) {
-  if (!focusReady || sliceCount < 1) return;
-
-  playbackBlend = damp(
-    playbackBlend,
-    state.isPlaying ? 1 : 0,
-    PLAYBACK_BLEND_SMOOTHING,
-    delta,
-  );
-  stage.classList.toggle('is-playing', state.isPlaying || playbackBlend > 0.02);
-
-  const frameFloat = clamp(state.frameFloat, 0, sliceCount - 1);
-  const currentIndex = Math.floor(frameFloat);
-  const nextIndex = Math.min(currentIndex + 1, sliceCount - 1);
-  const interpolation = frameFloat - currentIndex;
-  const focusSaturation = 1.9;
-  const focusContrast = 1.29;
-  const focusWarmth = 0.28;
-
-  focusObjects.image.material.map = sliceTextures[currentIndex];
-  focusObjects.nextImage.material.map = sliceTextures[nextIndex];
-  focusObjects.glow.material.map = sliceTextures[currentIndex];
-  focusObjects.nextGlow.material.map = sliceTextures[nextIndex];
-
-  focusObjects.image.material.opacity = 0.99 * (1 - interpolation);
-  focusObjects.nextImage.material.opacity = nextIndex === currentIndex ? 0 : 0.99 * interpolation;
-  const glowPulse = prefersReducedMotion
-    ? FOCUS_GLOW_BASE
-    : FOCUS_GLOW_BASE
-      + Math.sin((elapsed / FOCUS_GLOW_CYCLE) * Math.PI * 2) * FOCUS_GLOW_BREATH;
-  focusObjects.glow.material.opacity = glowPulse * (1 - interpolation);
-  focusObjects.nextGlow.material.opacity = nextIndex === currentIndex
-    ? 0
-    : glowPulse * interpolation;
-
-  updateGradedMaterial(focusObjects.image.material, focusSaturation, focusContrast, focusWarmth);
-  updateGradedMaterial(focusObjects.nextImage.material, focusSaturation, focusContrast, focusWarmth);
-  focusObjects.image.scale.setScalar(1.03 + playbackBlend * 0.02);
-  focusObjects.nextImage.scale.setScalar(1.03 + playbackBlend * 0.02);
-  focusObjects.glow.scale.setScalar(1.04 + playbackBlend * 0.025);
-  focusObjects.nextGlow.scale.copy(focusObjects.glow.scale);
-
-  const trailOpacity = [0.11, 0.075, 0.05, 0.032, 0.02];
-  const trailVisibility = prefersReducedMotion ? 0 : playbackBlend;
-  focusTrailPlanes.forEach((trail, index) => {
-    const trailFrame = clamp(
-      Math.round(frameFloat - state.playbackDirection * (index + 1) * FOCUS_TRAIL_FRAME_STEP),
-      0,
-      sliceCount - 1,
-    );
-    trail.material.map = sliceTextures[trailFrame];
-    trail.material.opacity = trailVisibility * trailOpacity[index];
-    trail.position.x = -state.playbackDirection * (index + 1) * FOCUS_TRAIL_SPACING * trailVisibility;
-    trail.position.z = 0.04
-      - state.playbackDirection * (index + 1) * FOCUS_TRAIL_DEPTH_STEP * trailVisibility;
-    trail.position.y = ((index % 2 === 0 ? 1 : -1) * (index + 1) * 0.012) * trailVisibility;
-    trail.scale.setScalar(1 - index * 0.04);
-  });
-}
-
 function updateSlices(delta, elapsed) {
   state.spread = damp(state.spread, state.spreadTarget, 7, delta);
   sliceRoot.position.y = prefersReducedMotion ? 0 : Math.sin(elapsed * 1.15) * 0.022;
   const reveal = smoothstep(0.025, 0.2, state.spread);
   const sideView = smoothstep(0.2, 0.86, Math.abs(Math.sin(state.yaw)));
-  const timelineCenter = (sliceCount - 1) / 2;
-  const timelineVisibility = reveal * (0.74 - playbackBlend * 0.22);
+  const currentFrameIndex = Math.floor(state.frameFloat);
+
   slices.forEach((slice, index) => {
-    const distance = Math.abs(index - timelineCenter);
-    const timelineFade = Math.exp(-distance / 15);
-    const playbackDistance = Math.abs(index - state.frameFloat);
-    const playbackCursor = reveal * playbackBlend * Math.exp(-playbackDistance / PLAYBACK_CURSOR_DECAY);
-    const playbackCursorCore = reveal
-      * playbackBlend
-      * Math.exp(-playbackDistance / PLAYBACK_CURSOR_CORE_DECAY);
-
-    slice.visible = true;
-    slice.position.set(0, 0, -(index - timelineCenter) * SLICE_DEPTH_STEP * state.spread);
-    slice.rotation.set(0, 0, 0);
-
-    slice.userData.card.material.opacity = timelineVisibility
-      * (0.006 + sideView * 0.01 + timelineFade * 0.016)
-      + playbackCursor * 0.012;
-    slice.userData.outline.material.opacity = timelineVisibility
-      * (0.035 + sideView * 0.02 + timelineFade * 0.06)
-      + playbackCursor * (0.075 + sideView * 0.025);
-    slice.userData.image.material.opacity = timelineVisibility * (0.002 + timelineFade * 0.05)
-      + playbackCursor * 0.048;
-    slice.userData.glow.material.opacity = playbackCursorCore * (0.032 + sideView * 0.012);
-    slice.userData.glow.scale.setScalar(1.01 + playbackCursorCore * 0.06);
-    updateGradedMaterial(
-      slice.userData.image.material,
-      1.04 + timelineFade * 0.1 + playbackCursor * 0.22,
-      1.02 + timelineFade * 0.08 + playbackCursor * 0.1,
-      timelineFade * 0.025 + playbackCursor * 0.06,
+    const isBeforeCurrent = index < currentFrameIndex;
+    const offset = index - state.frameFloat;
+    const distance = Math.abs(offset);
+    const focus = Math.max(0, 1 - distance / 5);
+    const tailOpacity = 0.028 + sideView * 0.045;
+    const activeOpacity = distance < 0.55 ? 0.92 : 0;
+    const nearOpacity = distance < 4 ? 0.52 - distance * 0.08 : 0;
+    const middleOpacity = distance >= 4 ? 0.16 * Math.exp(-(distance - 4) / 8) : 0;
+    const imageOpacity = reveal * clamp(
+      Math.max(activeOpacity, nearOpacity, middleOpacity + tailOpacity, tailOpacity),
+      0,
+      0.94,
     );
-    slice.scale.setScalar(0.88 + timelineFade * 0.04 + playbackCursor * 0.045);
+
+    slice.visible = !isBeforeCurrent;
+    if (isBeforeCurrent) return;
+
+    const drift = prefersReducedMotion ? 0 : state.spread;
+    slice.position.x = offset * LATERAL_STEP * state.spread + Math.sin(elapsed * 0.56 + index * 0.18) * 0.012 * drift;
+    slice.position.y = Math.sin(index * 0.33) * 0.03 * state.spread + Math.sin(elapsed * 0.78 + index * 0.24) * 0.028 * drift;
+    slice.position.z = -offset * DEPTH_STEP * state.spread - 0.55 + Math.cos(elapsed * 0.47 + index * 0.14) * 0.018 * drift;
+    slice.rotation.x = Math.sin(elapsed * 0.38 + index * 0.16) * 0.008 * drift;
+    slice.rotation.y = offset * 0.012 * state.spread + Math.sin(elapsed * 0.46 + index * 0.11) * 0.012 * drift;
+    slice.rotation.z = Math.sin(index * 0.17) * 0.012 * state.spread + Math.cos(elapsed * 0.52 + index * 0.2) * 0.008 * drift;
+
+    slice.userData.card.material.opacity = reveal * (0.028 + sideView * 0.025 + focus * 0.035);
+    slice.userData.outline.material.opacity = reveal * (0.18 + sideView * 0.05 + focus * 0.22);
+    slice.userData.image.material.opacity = imageOpacity;
+    const shader = slice.userData.image.material.userData.shader;
+    if (shader) {
+      shader.uniforms.sliceSaturation.value = 1.12 + focus * 0.28 + sideView * 0.06;
+      shader.uniforms.sliceContrast.value = 1.05 + focus * 0.1;
+    }
+    slice.scale.setScalar(0.88 + focus * 0.12 * reveal);
   });
 
   const frame = Math.round(state.frameFloat) + 1;
@@ -890,7 +694,6 @@ function render() {
   animationTime += delta;
   updatePlayback(delta);
   updateRotation(delta);
-  updateFocus(delta, animationTime);
   updateSlices(delta, animationTime);
   updateCamera(delta, animationTime);
   updateAtmosphere(animationTime);
